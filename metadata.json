@@ -1,0 +1,10 @@
+{
+  "name": "FixMate by OPay",
+  "description": "A Gemini-powered artisan marketplace for Nigeria's informal economy with OPay Escrow.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
