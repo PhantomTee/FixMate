@@ -1,8 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import { JobDiagnosis, ArtisanData } from '@/lib/types';
-import { MOCK_USER } from '@/lib/mock-db';
+import { Artisan, JobDiagnosis } from '@/lib/types';
 
 export interface ChatMessage {
   id: string;
@@ -14,8 +13,10 @@ export interface ChatMessage {
 interface FixMateState {
   diagnosis: JobDiagnosis | null;
   setDiagnosis: (d: JobDiagnosis) => void;
-  selectedArtisan: any | null;
-  setSelectedArtisan: (a: any) => void;
+  selectedArtisan: Artisan | null;
+  setSelectedArtisan: (a: Artisan) => void;
+  activeJobId: string | null;
+  setActiveJobId: (jobId: string | null) => void;
   escrowStatus: 'IDLE' | 'FUNDED' | 'RELEASED';
   setEscrowStatus: (status: 'IDLE' | 'FUNDED' | 'RELEASED') => void;
   userBalance: number;
@@ -29,9 +30,11 @@ export const useFixMateStore = create<FixMateState>((set) => ({
   setDiagnosis: (d) => set({ diagnosis: d }),
   selectedArtisan: null,
   setSelectedArtisan: (a) => set({ selectedArtisan: a }),
+  activeJobId: null,
+  setActiveJobId: (jobId) => set({ activeJobId: jobId }),
   escrowStatus: 'IDLE',
   setEscrowStatus: (s) => set({ escrowStatus: s }),
-  userBalance: MOCK_USER.walletBalance,
+  userBalance: 250000,
   deductBalance: (amount) => set((state) => ({ userBalance: state.userBalance - amount })),
   chatMessages: {},
   addChatMessage: (jobId, message) => set((state) => {

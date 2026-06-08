@@ -4,8 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import Link from 'next/link';
-import { Star, ShieldCheck } from 'lucide-react';
-import { useEffect } from 'react';
+import { ArtisanData } from '@/lib/types';
 
 // Fix Leaflet icon loading issues in Next.js
 const customIcon = new L.Icon({
@@ -18,9 +17,7 @@ const customIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-type Artisan = any;
-
-function ArtisanMarker({ artisan }: { artisan: Artisan }) {
+function ArtisanMarker({ artisan }: { artisan: ArtisanData }) {
   if (!artisan.lat || !artisan.lng) return null;
   
   return (
@@ -28,11 +25,11 @@ function ArtisanMarker({ artisan }: { artisan: Artisan }) {
       <Popup>
         <div className="p-1 min-w-[200px] font-sans">
           <h3 className="font-bold text-gray-900 flex items-center gap-1 text-sm mb-1 m-0">
-            {artisan.name} {artisan.isVerified && <ShieldCheck className="w-3 h-3 text-green-600" />}
+            {artisan.name} {artisan.isVerified && <span className="text-[10px] font-bold text-green-700">VERIFIED</span>}
           </h3>
           <p className="text-xs text-gray-600 mb-2 m-0">{artisan.category} • {artisan.location}</p>
           <div className="flex items-center gap-2 text-xs mb-3">
-            <span className="flex items-center gap-1"><Star className="w-3 h-3 text-yellow-500 fill-yellow-500"/> {artisan.score}%</span>
+            <span>{artisan.score}%</span>
             <span className="font-semibold">{artisan.rate}</span>
           </div>
           <Link href={`/report?artisan=${artisan.id}&category=${artisan.category.toLowerCase()}`} className="block w-full text-center py-1.5 bg-green-700 text-white text-xs font-medium hover:bg-green-800 transition-colors rounded-none no-underline">
@@ -44,7 +41,7 @@ function ArtisanMarker({ artisan }: { artisan: Artisan }) {
   );
 }
 
-export default function ExploreMapInner({ artisans }: { artisans: Artisan[] }) {
+export default function ExploreMapInner({ artisans }: { artisans: ArtisanData[] }) {
   return (
     <MapContainer 
       center={[6.5244, 3.3792]} // Lagos center

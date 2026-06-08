@@ -1,4 +1,6 @@
-export const MOCK_ARTISANS: any[] = [
+import { ArtisanData } from "@/lib/types";
+
+export const MOCK_ARTISANS: ArtisanData[] = [
   { id: "1", name: "Opeyemi Ahmed", category: "AC Repair", location: "Ikeja", lat: 6.6018, lng: 3.3515, score: 92, rate: "₦15,000/hr", avatar: "https://i.pravatar.cc/150?img=11", completedJobs: 45, isVerified: true },
   { id: "2", name: "Chinedu Okafor", category: "Plumber", location: "Surulere", lat: 6.4965, lng: 3.3481, score: 88, rate: "₦10,000/hr", avatar: "https://i.pravatar.cc/150?img=12", completedJobs: 112, isVerified: true },
   { id: "3", name: "Funmi Adebayo", category: "Tailor", location: "Yaba", lat: 6.5095, lng: 3.3711, score: 95, rate: "₦8,000/hr", avatar: "https://i.pravatar.cc/150?img=5", completedJobs: 89, isVerified: true },

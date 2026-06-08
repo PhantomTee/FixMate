@@ -1,75 +1,107 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { Menu, X, Star, ChevronDown } from 'lucide-react';
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { getDemoRole, ROLE_META } from "@/lib/demo-auth";
+import { DemoRole } from "@/lib/types";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  
-  // Simulated Auth for Admin Access
-  let currentUserEmail = ''; // In a real app, this would come from useSession() or Auth context
-  const ADMIN_EMAIL = 'shuaibthalhat54@gmail.com';
-  const isAdmin = currentUserEmail === ADMIN_EMAIL;
+  const [role, setRole] = useState<DemoRole>("user");
 
-  const toggle = () => setIsOpen(!isOpen);
+  useEffect(() => {
+    setRole(getDemoRole());
+    const handler = (e: Event) => setRole((e as CustomEvent<DemoRole>).detail);
+    window.addEventListener("fixmate-role-changed", handler);
+    return () => window.removeEventListener("fixmate-role-changed", handler);
+  }, []);
+
+  const close = () => setIsOpen(false);
+  const meta = ROLE_META[role];
 
   return (
     <>
-      <header className="bg-white px-6 py-4 flex items-center justify-between max-w-7xl mx-auto w-full sticky top-0 z-50">
-        <Link href="/" className="flex items-center gap-2">
-          <Star className="w-5 h-5 fill-black text-black" />
-          <span className="text-lg font-semibold text-gray-900 tracking-tight whitespace-nowrap">FixMate.ai</span>
-        </Link>
+      <header className="sticky top-0 z-50 w-full border-b border-gray-100 bg-white/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6">
 
-        {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-700">
-          <button className="flex items-center gap-1 hover:text-black transition-colors">
-            Solutions <ChevronDown className="w-4 h-4" />
-          </button>
-          <Link href="/explore" className="hover:text-black transition-colors">
-            Find Artisans
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2.5 shrink-0">
+            <span className="flex h-8 w-8 items-center justify-center bg-green-700 text-sm font-black text-white">F</span>
+            <span className="text-base font-black tracking-tight text-gray-950">FixMate</span>
           </Link>
-          <button className="flex items-center gap-1 hover:text-black transition-colors">
-            For Artisans <ChevronDown className="w-4 h-4" />
-          </button>
-          <Link href="/dashboard" className="hover:text-black transition-colors">
-            Wallet
-          </Link>
-          <Link href="/report" className="hover:text-black transition-colors">
-            Request an Artisan
-          </Link>
-        </nav>
 
-        {/* Right Nav */}
-        <div className="hidden md:flex items-center gap-6">
-          <Link href="/artisan/dashboard" className="text-sm font-medium text-gray-700 hover:text-black transition-colors">
-            Login
-          </Link>
-          <Link href="/report" className="bg-green-700 text-white px-5 py-2.5 rounded-none text-sm font-medium hover:bg-green-800 transition-colors">
-            Get started free
-          </Link>
+          {/* Desktop nav */}
+          <nav className="hidden items-center gap-6 text-[13px] font-semibold text-gray-500 md:flex">
+            <Link href="/report"            className="hover:text-gray-950 transition-colors">Report</Link>
+            <Link href="/dashboard"         className="hover:text-gray-950 transition-colors">Customer</Link>
+            <Link href="/artisan/dashboard" className="hover:text-gray-950 transition-colors">Artisan Hub</Link>
+            <Link href="/admin"             className="hover:text-gray-950 transition-colors">Admin</Link>
+            <span className="text-gray-200 select-none">|</span>
+            <Link href="/opay-simulator"    className="text-blue-600 hover:text-blue-700 transition-colors">OPay Sim</Link>
+            <Link href="/ussd-demo"         className="text-purple-600 hover:text-purple-700 transition-colors">USSD</Link>
+            <Link href="/whatsapp-demo"     className="text-green-600 hover:text-green-700 transition-colors">WhatsApp</Link>
+          </nav>
+
+          {/* Desktop right */}
+          <div className="hidden items-center gap-2.5 md:flex">
+            <Link
+              href={meta.path}
+              className={`px-3 py-1.5 text-[11px] font-black uppercase tracking-wider border transition-colors ${meta.color}`}
+            >
+              {meta.label} ↗
+            </Link>
+            <Link
+              href="/report"
+              className="bg-green-700 px-5 py-2 text-[13px] font-black text-white hover:bg-green-800 transition-colors tracking-wide"
+            >
+              Get Started
+            </Link>
+          </div>
+
+          {/* Mobile hamburger */}
+          <button
+            className="border border-gray-200 px-3 py-2 text-xs font-black uppercase tracking-wider text-gray-900 md:hidden hover:border-gray-950 transition-colors"
+            onClick={() => setIsOpen((o) => !o)}
+          >
+            {isOpen ? "Close" : "Menu"}
+          </button>
         </div>
-
-        {/* Mobile Toggle */}
-        <button className="md:hidden text-gray-800" onClick={toggle} aria-label="Toggle Navigation">
-          {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
       </header>
 
-      {/* Mobile Nav Drawer */}
+      {/* Mobile drawer */}
       {isOpen && (
-        <div className="md:hidden fixed inset-0 z-40 bg-white pt-20 flex flex-col h-screen overflow-y-auto w-full">
-          <nav className="flex flex-col text-lg font-medium text-gray-800">
-            <Link href="/" onClick={toggle} className="py-4 px-6 border-b border-gray-100 block transition-colors hover:bg-gray-50 hover:text-green-600">Home</Link>
-            <Link href="/explore" onClick={toggle} className="py-4 px-6 border-b border-gray-100 block transition-colors hover:bg-gray-50 hover:text-green-600">Find Artisans</Link>
-            <Link href="/report" onClick={toggle} className="py-4 px-6 border-b border-gray-100 block transition-colors hover:bg-gray-50 hover:text-green-600">Request an Artisan</Link>
-            <Link href="/dashboard" onClick={toggle} className="py-4 px-6 border-b border-gray-100 block transition-colors hover:bg-gray-50 hover:text-green-600">User Wallet</Link>
-            <Link href="/artisan/dashboard" onClick={toggle} className="py-4 px-6 border-b border-gray-100 block transition-colors hover:bg-gray-50 hover:text-green-600">Artisan Hub</Link>
-            {isAdmin && (
-              <Link href="/admin" onClick={toggle} className="py-4 px-6 border-b border-gray-100 block transition-colors hover:bg-gray-50 hover:text-green-600">Admin Console</Link>
-            )}
-            <Link href="/artisan/register" onClick={toggle} className="py-4 px-6 border-b border-gray-100 block text-green-700 hover:bg-green-50 transition-colors">Register as Artisan</Link>
+        <div className="fixed inset-0 z-40 bg-white pt-16 md:hidden overflow-y-auto">
+          <nav className="flex flex-col text-sm font-semibold text-gray-800">
+            {([
+              ["Home",              "/"],
+              ["Report Issue",      "/report"],
+              ["Customer",          "/dashboard"],
+              ["Become an Artisan", "/artisan/register"],
+              ["Artisan Hub",       "/artisan/dashboard"],
+              ["Admin Console",     "/admin"],
+            ] as [string, string][]).map(([label, href]) => (
+              <Link key={href} href={href} onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50 transition-colors">
+                {label}
+              </Link>
+            ))}
+
+            <p className="px-6 pt-5 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Judge Demo Tools</p>
+
+            {([
+              ["OPay Simulator", "/opay-simulator", "text-blue-700"],
+              ["USSD Demo",      "/ussd-demo",      "text-purple-700"],
+              ["WhatsApp Bot",   "/whatsapp-demo",  "text-green-700"],
+            ] as [string, string, string][]).map(([label, href, color]) => (
+              <Link key={href} href={href} onClick={close} className={`border-b border-gray-100 px-6 py-4 hover:bg-gray-50 transition-colors ${color}`}>
+                {label}
+              </Link>
+            ))}
+
+            <div className="px-6 py-5">
+              <Link href="/report" onClick={close} className="block w-full bg-green-700 text-white text-center py-3.5 text-sm font-black tracking-wide hover:bg-green-800">
+                Get Started →
+              </Link>
+            </div>
           </nav>
         </div>
       )}

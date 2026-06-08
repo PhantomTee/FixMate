@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { MOCK_ARTISANS } from '@/lib/mock-db';
-import { MapPin, Search, Star, ShieldCheck, ChevronLeft } from 'lucide-react';
 import ExploreMap from './ExploreMap';
 
 export default function ExploreClient() {
@@ -22,7 +21,7 @@ export default function ExploreClient() {
       <header className="bg-white px-6 py-4 flex items-center justify-between border-b shadow-sm z-10 relative">
         <div className="flex items-center">
           <Link href="/" className="text-gray-500 hover:text-gray-800 mr-4 font-bold flex items-center gap-1">
-             <ChevronLeft className="w-5 h-5"/> Home
+             Home
           </Link>
           <span className="text-xl font-bold text-gray-900 tracking-tight">Find Local Artisans</span>
         </div>
@@ -36,21 +35,19 @@ export default function ExploreClient() {
             <h2 className="text-xl font-bold text-gray-900 mb-4 tracking-tight">Search Artisans</h2>
             <div className="flex flex-col gap-3">
                 <div className="relative">
-                  <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
                   <input 
                     type="text" 
                     placeholder="e.g. Shoemaker, Plumber..." 
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-none focus:ring-2 focus:ring-green-700 outline-none transition"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-none focus:ring-2 focus:ring-green-700 outline-none transition"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
                 <div className="relative">
-                  <MapPin className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
                   <input 
                     type="text" 
                     placeholder="Filter by location (e.g. Oshodi)" 
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-none focus:ring-2 focus:ring-green-700 outline-none transition"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-none focus:ring-2 focus:ring-green-700 outline-none transition"
                     value={locationQuery}
                     onChange={(e) => setLocationQuery(e.target.value)}
                   />
@@ -72,14 +69,14 @@ export default function ExploreClient() {
                     </div>
                     <div>
                       <h3 className="font-bold text-gray-900 flex items-center gap-1 text-sm">
-                        {artisan.name} {artisan.isVerified && <ShieldCheck className="w-4 h-4 text-green-600 shrink-0" />}
+                        {artisan.name} {artisan.isVerified && <span className="text-[10px] font-bold text-green-700">VERIFIED</span>}
                       </h3>
                       <p className="text-xs font-medium text-gray-600">{artisan.category}</p>
                     </div>
                   </div>
                   <div className="flex flex-col gap-1.5 text-xs text-gray-600 mb-4">
-                    <span className="flex items-center gap-2"><MapPin className="w-3 h-3 text-gray-400"/> {artisan.location}</span>
-                    <span className="flex items-center gap-2"><Star className="w-3 h-3 text-yellow-500 fill-yellow-500"/> {artisan.score}% positive</span>
+                    <span>{artisan.location}</span>
+                    <span>{artisan.score}% positive</span>
                     <span className="font-semibold text-gray-800">{artisan.rate}</span>
                   </div>
                   <div className="mt-auto pt-3 border-t border-gray-100">

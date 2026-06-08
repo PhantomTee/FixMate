@@ -1,6 +1,11 @@
 'use client';
 
-export default function LocationAutocomplete({ onPlaceSelect, defaultValue, placeholder }: { onPlaceSelect?: (place: any) => void, defaultValue?: string, placeholder?: string }) {
+type PlaceResult = {
+  name: string;
+  formatted_address: string;
+};
+
+export default function LocationAutocomplete({ onPlaceSelect, defaultValue, placeholder }: { onPlaceSelect?: (place: PlaceResult) => void, defaultValue?: string, placeholder?: string }) {
   return (
     <input
       type="text"
