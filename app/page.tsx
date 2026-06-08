@@ -1,295 +1,226 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { Star, BarChart3, BookOpen, Users, Rocket } from 'lucide-react';
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 
-const bgImages = [
+const heroImages = [
+  "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?q=80&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?q=80&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?q=80&w=1920&auto=format&fit=crop",
   "https://images.unsplash.com/photo-1581094794329-c8112a89af12?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1486825586573-7131f7991bdd?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?q=80&w=1920&auto=format&fit=crop",
-  "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?q=80&w=1920&auto=format&fit=crop"
+  "https://images.unsplash.com/photo-1581578731548-c64695cc6952?q=80&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1504148455328-c376907d081c?q=80&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1487754180451-c456f719a1fc?q=80&w=1920&auto=format&fit=crop",
+];
+
+const previewSteps = [
+  {
+    key: "diagnose",
+    label: "Diagnose",
+    title: "Visual fault analysis",
+    text: "Gemini reviews the description and optional photo, then returns safety guidance and the right trade category.",
+    image: "https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?q=80&w=1200&auto=format&fit=crop",
+    stat: "AI triage",
+  },
+  {
+    key: "estimate",
+    label: "Estimate",
+    title: "Fair price estimate",
+    text: "Users see numeric min/max naira estimates, labor, materials, and urgency before booking.",
+    image: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?q=80&w=1200&auto=format&fit=crop",
+    stat: "Transparent cost",
+  },
+  {
+    key: "match",
+    label: "Match",
+    title: "Verified artisan match",
+    text: "FixMate ranks artisans by category, verification, trust score, completed jobs, and location text.",
+    image: "https://images.unsplash.com/photo-1504148455328-c376907d081c?q=80&w=1200&auto=format&fit=crop",
+    stat: "Trusted pros",
+  },
+  {
+    key: "resolve",
+    label: "Resolve",
+    title: "Escrow release",
+    text: "Payment stays in simulated OPay escrow until the job is complete and the user releases funds.",
+    image: "https://images.unsplash.com/photo-1554224154-26032fced8bd?q=80&w=1200&auto=format&fit=crop",
+    stat: "Pay on completion",
+  },
 ];
 
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState('analyse');
   const [bgIndex, setBgIndex] = useState(0);
-  const [heroIndex, setHeroIndex] = useState(0);
-  
-  const tabs = useMemo(() => ['analyse', 'train', 'testing', 'deploy'], []);
-  const heroTexts = useMemo(() => [
-    "Find Trusted Artisans.",
-    "Hire Expert Plumbers.",
-    "Get Reliable Electricians.",
-    "Book Local Mechanics.",
-    "Find Skilled Carpenters.",
-    "Discover Pro Tailors."
-  ], []);
+  const [stepIndex, setStepIndex] = useState(0);
+  const sponsorText = useMemo(
+    () => Array.from({ length: 8 }, () => "Powered by OPay x Google Gemini • Built for trusted local services • WhatsApp bot mirrors website activities • Registration stays on the website •").join(" "),
+    [],
+  );
 
   useEffect(() => {
-    const tabInterval = setInterval(() => {
-      setActiveTab((prev) => {
-        const idx = tabs.indexOf(prev);
-        return tabs[(idx + 1) % tabs.length];
-      });
-    }, 4000);
-    return () => clearInterval(tabInterval);
-  }, [tabs]);
-
-  useEffect(() => {
-    const bgInterval = setInterval(() => {
-      setBgIndex((prev) => {
-        let next;
-        do {
-          next = Math.floor(Math.random() * bgImages.length);
-        } while (next === prev);
-        return next;
-      });
-    }, 5000);
-    return () => clearInterval(bgInterval);
+    const timer = setInterval(() => setBgIndex((current) => (current + 1) % heroImages.length), 4500);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
-    const heroInterval = setInterval(() => {
-      setHeroIndex((prev) => (prev + 1) % heroTexts.length);
-    }, 3500);
-    return () => clearInterval(heroInterval);
-  }, [heroTexts.length]);
+    const timer = setInterval(() => setStepIndex((current) => (current + 1) % previewSteps.length), 4200);
+    return () => clearInterval(timer);
+  }, []);
+
+  const activeStep = previewSteps[stepIndex];
 
   return (
-    <div className="min-h-screen bg-white flex flex-col font-sans relative">
-      <div className="absolute inset-0 z-0 w-full h-[600px] md:h-[800px] overflow-hidden pointer-events-none">
-        {bgImages.map((src, idx) => (
-          <Image 
-            key={src} 
-            src={src} 
-            fill
-            referrerPolicy="no-referrer"
-            className={`object-cover transition-opacity duration-1000 ${bgIndex === idx ? 'opacity-10' : 'opacity-0'}`} 
-            alt="Background" 
-          />
-        ))}
-        {/* Gradient overlay to blend into the white bg below and maintain text readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/95 to-white"></div>
-      </div>
+    <div className="min-h-screen bg-white flex flex-col font-sans relative overflow-x-hidden">
+      <section className="relative min-h-[calc(100vh-72px)] flex items-center overflow-hidden">
+        <div className="absolute inset-0">
+          {heroImages.map((src, index) => (
+            <Image
+              key={src}
+              src={src}
+              fill
+              priority={index === 0}
+              referrerPolicy="no-referrer"
+              className={`object-cover transition-opacity duration-1000 ${bgIndex === index ? "opacity-20" : "opacity-0"}`}
+              alt="Nigerian artisans and home repair"
+            />
+          ))}
+          <div className="absolute inset-0 bg-white/75" />
+        </div>
 
-      <main className="flex-1 flex flex-col pt-24 pb-32 px-6 max-w-7xl mx-auto w-full text-center relative z-10">
-        
-        {/* Reviews Badge */}
-        <div 
-          className="inline-flex items-center gap-2 mb-8 animate-fade-in-up" 
-          style={{ opacity: 0, animationDelay: '0.2s' }}
-        >
-          <div className="w-6 h-6 border border-gray-300 rounded-none flex items-center justify-center bg-gray-50">
-            <Star className="w-3.5 h-3.5 fill-green-700 text-green-700" />
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6 py-12 sm:py-16 text-center">
+          <div className="mx-auto mb-6 w-fit border border-green-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-green-800">
+            AI diagnosis. Trusted artisans. Simulated OPay escrow.
           </div>
-          <span className="text-sm font-medium text-black">4.7 rating by 233 users</span>
-        </div>
+          <h1 className="mx-auto max-w-5xl text-5xl sm:text-6xl lg:text-[76px] font-semibold leading-[1.05] tracking-normal text-gray-950">
+            FixMate
+            <span className="block text-green-700">repair help that feels secure.</span>
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-base sm:text-lg text-gray-650">
+            Describe a home or service problem, get Gemini-backed guidance, match with a verified local artisan, and release payment only when the job is complete.
+          </p>
+          <p className="mx-auto mt-3 max-w-2xl text-sm font-medium text-gray-700">
+            WhatsApp bot mirrors website activities. Registration is only available on the website.
+          </p>
+          <div className="mt-8 flex flex-col sm:flex-row justify-center gap-3">
+            <Link href="/report" className="bg-green-700 px-6 py-3 text-sm font-bold text-white hover:bg-green-800">
+              Find an Artisan Now
+            </Link>
+            <Link href="/artisan/register" className="border border-gray-900 px-6 py-3 text-sm font-bold text-gray-950 hover:bg-gray-950 hover:text-white">
+              Apply as Artisan
+            </Link>
+          </div>
 
-        {/* Main Heading */}
-        <h1 
-          className="text-6xl md:text-7xl lg:text-[80px] font-normal leading-[1.1] tracking-tight mb-5 animate-fade-in-up"
-          style={{ opacity: 0, animationDelay: '0.3s' }}
-        >
-          <span className="inline-block transition-all duration-500 ease-in-out min-h-[1.1em]">
-            {heroTexts[heroIndex]}
-          </span><br />
-          <span className="bg-gradient-to-r from-green-800 via-green-600 to-green-500 bg-clip-text text-transparent">Secured by AI & OPay.</span>
-        </h1>
-
-        {/* Subheading */}
-        <p 
-          className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto animate-fade-in-up"
-          style={{ opacity: 0, animationDelay: '0.4s' }}
-        >
-          Post your task, match with verified local artisans around you, and pay securely via OPay Escrow only when the job is done right.
-        </p>
-
-        {/* CTA Button */}
-        <div className="animate-fade-in-up mb-12" style={{ opacity: 0, animationDelay: '0.5s' }}>
-          <Link 
-            href="/report" 
-            className="inline-block bg-green-700 text-white px-8 py-3 rounded-none text-base font-medium hover:bg-green-800 transition-colors shadow-sm"
-          >
-            Find an Artisan Now
-          </Link>
-        </div>
-
-        {/* Tab Bar */}
-        <div className="flex justify-center mb-8 animate-fade-in-up" style={{ opacity: 0, animationDelay: '0.6s' }}>
-          <div className="bg-gray-100 rounded-none p-1 inline-flex w-full md:w-auto">
-            {/* Mobile View */}
-            <div className="grid grid-cols-2 gap-1 w-full md:hidden">
-              <button onClick={() => setActiveTab('analyse')} className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'analyse' ? 'bg-white text-black shadow-sm' : 'text-gray-600'}`}>
-                <BarChart3 className="w-4 h-4" /> Diagnose
-              </button>
-              <button onClick={() => setActiveTab('train')} className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'train' ? 'bg-white text-black shadow-sm' : 'text-gray-600'}`}>
-                <BookOpen className="w-4 h-4" /> Estimate
-              </button>
-              <button onClick={() => setActiveTab('testing')} className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'testing' ? 'bg-white text-black shadow-sm' : 'text-gray-600'}`}>
-                <Users className="w-4 h-4" /> Match
-              </button>
-              <button onClick={() => setActiveTab('deploy')} className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'deploy' ? 'bg-white text-black shadow-sm' : 'text-gray-600'}`}>
-                <Rocket className="w-4 h-4" /> Resolve
-              </button>
+          <div className="mx-auto mt-12 w-full max-w-4xl">
+            <div className="relative aspect-[4/3] sm:aspect-[16/9] overflow-hidden border border-gray-200 bg-gray-100 shadow-sm">
+              <Image src={activeStep.image} fill className="object-cover" alt={activeStep.title} referrerPolicy="no-referrer" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
+              <div className="absolute left-4 right-4 top-4 flex justify-between gap-3 text-left">
+                <span className="bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-gray-900">{activeStep.stat}</span>
+                <span className="bg-green-700 px-3 py-1 text-xs font-bold text-white">{stepIndex + 1} / {previewSteps.length}</span>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 text-left text-white">
+                <p className="mb-2 w-fit bg-white px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-green-800">{activeStep.label}</p>
+                <h2 className="text-2xl sm:text-3xl font-bold">{activeStep.title}</h2>
+                <p className="mt-2 max-w-xl text-sm sm:text-base text-white/85">{activeStep.text}</p>
+              </div>
             </div>
-            {/* Desktop View */}
-            <div className="hidden md:flex items-center w-auto">
-              <button onClick={() => setActiveTab('analyse')} className={`flex items-center gap-2 px-6 py-2.5 text-sm font-medium transition-colors ${activeTab === 'analyse' ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
-                <BarChart3 className="w-4 h-4" /> Diagnose Issue
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <button onClick={() => setStepIndex((stepIndex + previewSteps.length - 1) % previewSteps.length)} className="border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:border-gray-900">
+                Previous
               </button>
-              <div className="w-px h-5 bg-gray-300 mx-1"></div>
-              <button onClick={() => setActiveTab('train')} className={`flex items-center gap-2 px-6 py-2.5 text-sm font-medium transition-colors ${activeTab === 'train' ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
-                <BookOpen className="w-4 h-4" /> Pricing Guidance
+              <div className="flex gap-2">
+                {previewSteps.map((step, index) => (
+                  <button
+                    key={step.key}
+                    onClick={() => setStepIndex(index)}
+                    aria-label={`Show ${step.label}`}
+                    className={`h-2.5 w-8 ${index === stepIndex ? "bg-green-700" : "bg-gray-300"}`}
+                  />
+                ))}
+              </div>
+              <button onClick={() => setStepIndex((stepIndex + 1) % previewSteps.length)} className="border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:border-gray-900">
+                Next
               </button>
-              <div className="w-px h-5 bg-gray-300 mx-1"></div>
-              <button onClick={() => setActiveTab('testing')} className={`flex items-center gap-2 px-6 py-2.5 text-sm font-medium transition-colors ${activeTab === 'testing' ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
-                <Users className="w-4 h-4" /> Secure Artisan
-              </button>
-              <div className="w-px h-5 bg-gray-300 mx-1"></div>
-              <button onClick={() => setActiveTab('deploy')} className={`flex items-center gap-2 px-6 py-2.5 text-sm font-medium transition-colors ${activeTab === 'deploy' ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
-                <Rocket className="w-4 h-4" /> Release Escrow
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Visualization & Overlays */}
-        <div className="relative w-full max-w-5xl mx-auto rounded-none overflow-hidden h-[400px] md:h-[500px] bg-gray-50 border border-gray-200 animate-fade-in-up shadow-sm flex items-center justify-center" style={{ opacity: 0, animationDelay: '0.7s' }}>
-          
-          <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] opacity-50"></div>
-
-          {/* Analyse / Diagnose Overlay */}
-          {activeTab === 'analyse' && (
-             <div className="absolute inset-0 flex items-center justify-center bg-black/40 animate-fade-in-overlay flex-col">
-               <div className="bg-white p-6 rounded-none shadow-2xl max-w-sm w-full mx-4 absolute top-1/2 left-1/2 animate-slide-up-overlay text-left">
-                  <h3 className="text-gray-900 font-semibold mb-2">Analyzing Visual Faults</h3>
-                  <div className="w-full bg-gray-100 h-2 mb-4">
-                    <div className="bg-green-600 h-2" style={{width: '65%'}}></div>
-                  </div>
-                  <ul className="text-sm text-gray-600 space-y-2">
-                    <li className="flex items-center gap-2"><div className="w-2 h-2 bg-green-500 rounded-none"></div> Leak detected</li>
-                    <li className="flex items-center gap-2"><div className="w-2 h-2 bg-green-500 rounded-none"></div> Pipe identified</li>
-                    <li className="flex items-center gap-2"><div className="w-2 h-2 bg-gray-300 rounded-none"></div> Generating summary...</li>
-                  </ul>
-               </div>
-             </div>
-          )}
-
-          {/* Train / Price Overlay */}
-          {activeTab === 'train' && (
-             <div className="absolute inset-0 flex items-center justify-center bg-black/40 animate-fade-in-overlay flex-col">
-               <div className="bg-white p-6 rounded-none shadow-2xl max-w-sm w-full mx-4 absolute top-1/2 left-1/2 animate-slide-up-overlay text-left">
-                  <h3 className="text-gray-900 font-semibold mb-4 border-b pb-2">Estimated Job Cost</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                     <div>
-                       <p className="text-xs text-gray-500">Materials</p>
-                       <p className="font-bold text-gray-900">₦12,500</p>
-                     </div>
-                     <div>
-                       <p className="text-xs text-gray-500">Labor Fee</p>
-                       <p className="font-bold text-gray-900">₦5,000</p>
-                     </div>
-                     <div>
-                       <p className="text-xs text-gray-500">Urgency</p>
-                       <p className="font-bold text-orange-600">High</p>
-                     </div>
-                     <div>
-                       <p className="text-xs text-gray-500">Total Est.</p>
-                       <p className="font-bold text-green-700">₦17,500</p>
-                     </div>
-                  </div>
-               </div>
-             </div>
-          )}
-
-          {/* Testing / Match Overlay */}
-          {activeTab === 'testing' && (
-             <div className="absolute inset-0 flex items-center justify-center bg-black/40 animate-fade-in-overlay flex-col">
-               <div className="bg-white p-6 rounded-none shadow-2xl max-w-sm w-full mx-4 absolute top-1/2 left-1/2 animate-slide-up-overlay text-left">
-                  <h3 className="text-gray-900 font-semibold mb-3">Matching Verified Artisans</h3>
-                  <div className="p-3 bg-green-50 border border-green-100 flex items-center justify-between mb-2">
-                    <div>
-                      <p className="font-bold text-sm text-gray-900">Opeyemi A.</p>
-                      <p className="text-xs text-gray-500">AC Repair • 2km away</p>
-                    </div>
-                    <span className="text-xs bg-green-600 text-white px-2 py-1">Matched</span>
-                  </div>
-                  <div className="p-3 bg-gray-50 border border-gray-100 flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-sm text-gray-900">Chinedu O.</p>
-                      <p className="text-xs text-gray-500">AC Repair • 4km away</p>
-                    </div>
-                    <span className="text-xs text-gray-500 px-2 py-1">Standby</span>
-                  </div>
-               </div>
-             </div>
-          )}
-
-          {/* Deploy / Escrow Overlay */}
-          {activeTab === 'deploy' && (
-             <div className="absolute inset-0 flex items-center justify-center bg-black/40 animate-fade-in-overlay flex-col">
-               <div className="bg-white p-6 rounded-none shadow-2xl max-w-sm w-full mx-4 absolute top-1/2 left-1/2 animate-slide-up-overlay text-center">
-                  <h3 className="text-gray-900 font-semibold mb-4 text-center">OPay Escrow Ready</h3>
-                  <ul className="text-sm text-gray-600 mb-5 space-y-2 flex flex-col items-center">
-                    <li className="flex items-center gap-2 justify-center w-full"><div className="w-4 h-4 bg-green-100 flex items-center justify-center text-green-700 text-[10px]">✓</div> Funds Verified</li>
-                    <li className="flex items-center gap-2 justify-center w-full"><div className="w-4 h-4 bg-green-100 flex items-center justify-center text-green-700 text-[10px]">✓</div> Artisan Accepted</li>
-                    <li className="flex items-center gap-2 justify-center w-full"><div className="w-4 h-4 bg-gray-100 flex items-center justify-center text-gray-400 text-[10px]">○</div> Job Completed</li>
-                  </ul>
-                  <button className="w-full py-2 bg-black text-white text-sm font-medium hover:bg-gray-800 transition-colors">
-                    Lock Funds in Escrow
-                  </button>
-               </div>
-             </div>
-          )}
-        </div>
-
-        {/* Company Logos */}
-        <div className="mt-24 pt-10 border-t border-gray-100 animate-fade-in-up flex flex-wrap justify-center items-center gap-12 md:gap-24 grayscale opacity-60" style={{ opacity: 0, animationDelay: '0.8s' }}>
-           <span className="text-2xl font-bold tracking-tight text-gray-800">OPay</span>
-           <span className="text-2xl font-semibold tracking-tighter text-gray-800 flex items-center gap-1">
-             Google
-           </span>
-           <span className="text-2xl font-medium tracking-wide text-gray-800 flex items-center gap-1">
-             Gemini ✨
-           </span>
-        </div>
-
-      </main>
-
-      {/* Info Section */}
-      <section className="bg-gray-50 py-24 px-6 border-t border-gray-200 z-10 relative">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-12">
-          <div className="flex-1 text-left">
-             <h2 className="text-3xl font-bold mb-4 text-gray-900">Fix matters quickly, with confidence.</h2>
-             <p className="text-gray-600 mb-6">Our AI analyzes your fault, matches you with the best artisans, and uses OPay Escrow to ensure you only pay when the job is fully completed.</p>
-             <ul className="space-y-4 text-gray-700 mb-8">
-               <li className="flex items-center gap-3"><span className="w-6 h-6 rounded-none bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">1</span> Snap a photo or video</li>
-               <li className="flex items-center gap-3"><span className="w-6 h-6 rounded-none bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">2</span> AI diagnostics & fair pricing</li>
-               <li className="flex items-center gap-3"><span className="w-6 h-6 rounded-none bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">3</span> Real-time vetted matching</li>
-               <li className="flex items-center gap-3"><span className="w-6 h-6 rounded-none bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">4</span> Funds secured in OPay Escrow</li>
-             </ul>
-          </div>
-          <div className="flex-1 bg-white p-8 border border-gray-200 shadow-sm flex flex-col justify-center text-left">
-            <h3 className="text-xl font-bold mb-2">Are you a skilled artisan?</h3>
-            <p className="text-gray-600 mb-6">Join our network of elite professionals. Get consistent jobs, guaranteed payments through OPay, and build your reputation.</p>
-            <div>
-              <Link href="/artisan/register" className="inline-block bg-black text-white px-6 py-3 rounded-none text-sm font-medium hover:bg-gray-800 transition-colors text-center">
-                Apply as Artisan
-              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-white py-12 px-6 border-t border-gray-200 z-10 relative">
+      <div className="overflow-hidden border-y border-gray-200 bg-gray-950 py-3 text-white">
+        <div className="marquee-track whitespace-nowrap text-sm font-semibold uppercase tracking-[0.16em]">
+          {sponsorText}
+        </div>
+      </div>
+
+      <section className="bg-gray-50 py-20 px-4 sm:px-6 border-t border-gray-200">
+        <div className="max-w-7xl mx-auto grid gap-8 md:grid-cols-2">
+          <div className="text-left">
+            <h2 className="text-3xl font-bold mb-4 text-gray-900">Built for Nigerian repair workflows.</h2>
+            <p className="text-gray-600 mb-6">Gemini helps with triage, but FixMate keeps registration, booking, escrow review, and artisan operations on the website for accountability.</p>
+            <div className="grid gap-3 text-sm text-gray-700">
+              {["Snap or describe the issue", "Receive AI diagnosis and price guidance", "Match with verified local artisans", "Release simulated OPay escrow after completion"].map((item, index) => (
+                <div key={item} className="flex items-center gap-3 border border-gray-200 bg-white p-3">
+                  <span className="flex h-7 w-7 items-center justify-center bg-green-100 text-xs font-bold text-green-800">{index + 1}</span>
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="bg-white p-8 border border-gray-200 shadow-sm text-left">
+            <h3 className="text-xl font-bold mb-2">Are you a skilled artisan?</h3>
+            <p className="text-gray-600 mb-6">Apply on the website, build a trust score, manage assigned jobs, and track pending escrow balances.</p>
+            <Link href="/artisan/register" className="inline-block bg-black text-white px-6 py-3 text-sm font-bold hover:bg-gray-800">
+              Apply as Artisan
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-gray-950 py-16 px-4 sm:px-6 border-t border-gray-800">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="inline-block border border-green-500 bg-green-900/30 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-green-400 mb-6">
+            Judge Demo
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">Run the Full Demo Flow</h2>
+          <p className="text-gray-400 mb-10 max-w-2xl mx-auto">
+            Experience the complete FixMate stack — AI diagnosis, escrow payment, artisan matching, and admin controls — in a single walkthrough.
+          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10 text-left">
+            {[
+              { step: "1", title: "Report Issue", desc: "Describe a fault. Upload a photo. Pick a language. Gemini triages and matches artisans.", href: "/report", color: "border-green-600" },
+              { step: "2", title: "Book & Pay", desc: "Select an artisan and fund the OPay escrow. Funds stay locked until job completion.", href: "/booking", color: "border-blue-600" },
+              { step: "3", title: "Artisan Hub", desc: "Switch to Artisan role. Accept the job, mark progress, mark completed.", href: "/artisan/dashboard", color: "border-purple-600" },
+              { step: "4", title: "Admin Console", desc: "Review trust scores, resolve disputes, inspect the full escrow ledger.", href: "/admin", color: "border-amber-600" },
+            ].map(({ step, title, desc, href, color }) => (
+              <Link key={step} href={href} className={`border-l-4 ${color} bg-white/5 hover:bg-white/10 p-4 transition-colors`}>
+                <div className="text-2xl font-black text-white/30 mb-1">{step}</div>
+                <h3 className="text-sm font-bold text-white mb-1">{title}</h3>
+                <p className="text-xs text-gray-400">{desc}</p>
+              </Link>
+            ))}
+          </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link href="/report" className="bg-green-700 px-6 py-3 text-sm font-bold text-white hover:bg-green-600">
+              Start Demo →
+            </Link>
+            <Link href="/opay-simulator" className="border border-blue-500 px-6 py-3 text-sm font-bold text-blue-400 hover:bg-blue-900/30">
+              OPay Simulator
+            </Link>
+            <Link href="/ussd-demo" className="border border-purple-500 px-6 py-3 text-sm font-bold text-purple-400 hover:bg-purple-900/30">
+              USSD Demo
+            </Link>
+            <Link href="/whatsapp-demo" className="border border-green-500 px-6 py-3 text-sm font-bold text-green-400 hover:bg-green-900/30">
+              WhatsApp Demo
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <footer className="bg-white py-12 px-4 sm:px-6 border-t border-gray-200">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-12 text-left">
           <div>
             <h4 className="font-bold text-lg mb-4 text-gray-900">FixMate</h4>
-            <p className="text-gray-500 text-sm">Empowering home repairs with AI diagnosis and secure OPay Escrow.</p>
+            <p className="text-gray-500 text-sm">AI-supported repairs, verified artisans, and simulated OPay escrow for safer local services.</p>
           </div>
           <div>
             <h4 className="font-semibold text-gray-900 mb-4">Platform</h4>
@@ -303,25 +234,21 @@ export default function HomePage() {
           <div>
             <h4 className="font-semibold text-gray-900 mb-4">Legal & Support</h4>
             <ul className="space-y-2 text-sm text-gray-600">
-              <li><Link href="#" className="hover:text-green-700 transition">Privacy Policy</Link></li>
-              <li><Link href="#" className="hover:text-green-700 transition">Terms of Service</Link></li>
-              <li><Link href="#" className="hover:text-green-700 transition">Escrow Guidelines</Link></li>
-              <li><Link href="#" className="hover:text-green-700 transition">Help Center</Link></li>
+              <li><Link href="/privacy" className="hover:text-green-700 transition">Privacy Policy</Link></li>
+              <li><Link href="/terms" className="hover:text-green-700 transition">Terms of Service</Link></li>
+              <li><Link href="/escrow-guidelines" className="hover:text-green-700 transition">Escrow Guidelines</Link></li>
+              <li><Link href="/help" className="hover:text-green-700 transition">Help Center</Link></li>
             </ul>
           </div>
           <div>
-            <h4 className="font-semibold text-gray-900 mb-4">Contact</h4>
-            <ul className="space-y-2 text-sm text-gray-600">
-              <li>support@fixmate.io</li>
-              <li>Lagos, Nigeria</li>
-            </ul>
+            <h4 className="font-semibold text-gray-900 mb-4">Service model</h4>
+            <p className="text-sm text-gray-600">WhatsApp bot mirrors website activities. Registration is only available on the website.</p>
           </div>
         </div>
         <div className="max-w-7xl mx-auto border-t border-gray-100 pt-8 text-sm text-gray-400 text-center">
-          &copy; {new Date().getFullYear()} FixMate. All rights reserved. Secured by OPay and Google Gemini.
+          &copy; {new Date().getFullYear()} FixMate. All rights reserved.
         </div>
       </footer>
     </div>
   );
 }
-

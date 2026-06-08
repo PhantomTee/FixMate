@@ -1,264 +1,240 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { diagnoseIssue } from '@/app/actions';
-import { MOCK_ARTISANS } from '@/lib/mock-db';
-import { useFixMateStore } from '@/lib/store';
-import Image from 'next/image';
-import { Zap, Camera, ChevronLeft, Bot, BadgeAlert, AlertTriangle, Info, MapPin, ShieldCheck, Star } from 'lucide-react';
-import LocationAutocomplete from '@/components/LocationAutocomplete';
+import { useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { diagnoseIssue } from "@/app/actions";
+import LocationAutocomplete from "@/components/LocationAutocomplete";
+import { createBooking, createJobWithDiagnosis, getMatchReason, loadDb, matchArtisans } from "@/lib/demo-db";
+import { Artisan, ArtisanCategory, DiagnosisRecord, JobRequest, SupportedLanguage } from "@/lib/types";
+import { useFixMateStore } from "@/lib/store";
+
+const naira = (v: number) => `₦${v.toLocaleString()}`;
+const LANGUAGES: SupportedLanguage[] = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"];
 
 export default function ReportPage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const setDiagnosisState = useFixMateStore((s) => s.setDiagnosis);
-  
-  const [description, setDescription] = useState('');
-  
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const setSelectedArtisan = useFixMateStore((s) => s.setSelectedArtisan);
+  const setActiveJobId = useFixMateStore((s) => s.setActiveJobId);
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("Yaba, Lagos");
+  const [language, setLanguage] = useState<SupportedLanguage>("English");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [diagnosisResult, setDiagnosisResult] = useState<any | null>(null);
-  const [recommendedArtisans, setRecommendedArtisans] = useState<any[]>([]);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisRecord | null>(null);
+  const [job, setJob] = useState<JobRequest | null>(null);
+  const [recommendedArtisans, setRecommendedArtisans] = useState<Artisan[]>([]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      setImageFile(file);
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
   };
 
   const handleAnalyze = async () => {
-    if (!description && !imagePreview) return;
-    
+    if (!description.trim() && !imagePreview) return;
     setIsAnalyzing(true);
-    
     try {
-      const result = await diagnoseIssue(description, imagePreview);
-      setDiagnosisResult(result);
+      const result = await diagnoseIssue(description, imagePreview, language);
+      const saved = createJobWithDiagnosis({
+        description,
+        imageProvided: Boolean(imagePreview),
+        location,
+        diagnosis: result,
+      });
+      setDiagnosisResult(saved.diagnosis);
+      setJob(saved.job);
       setDiagnosisState(result);
-      
-      const matched = MOCK_ARTISANS.filter(
-        a => a.category.toLowerCase() === result.artisan_category?.toLowerCase()
-      );
-      setRecommendedArtisans(matched.length > 0 ? matched : MOCK_ARTISANS.slice(0, 3));
-      
-    } catch (error) {
-      console.error(error);
-      alert("Failed to analyze issue. Please try again.");
+      setActiveJobId(saved.job.id);
+      setRecommendedArtisans(matchArtisans(saved.db, result.artisan_category, location));
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const handleBook = (artisan: any) => {
-     useFixMateStore.getState().setSelectedArtisan(artisan);
-     router.push('/booking');
+  const handleBook = (artisan: Artisan) => {
+    if (!job || !diagnosisResult) return;
+    const { booking } = createBooking(job.id, artisan.id, diagnosisResult.estimated_max_naira);
+    setSelectedArtisan(artisan);
+    setActiveJobId(job.id);
+    router.push(`/booking?bookingId=${booking.id}`);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
-      <header className="bg-white px-6 py-4 flex items-center border-b shadow-sm mb-4">
+      <header className="bg-white px-4 sm:px-6 py-4 flex items-center border-b shadow-sm mb-4">
         <Link href="/" className="text-gray-500 hover:text-gray-800 mr-4 font-bold flex items-center gap-1">
-           <ChevronLeft className="w-5 h-5"/> Back
+          Back
         </Link>
         <span className="text-xl font-bold text-gray-900 tracking-tight">FixMate Diagnostic</span>
       </header>
 
-      <main className="flex-1 flex flex-col items-center py-10 px-6 max-w-2xl mx-auto w-full">
-        
+      <main className="flex-1 flex flex-col items-center py-6 sm:py-10 px-4 sm:px-6 max-w-2xl mx-auto w-full">
         {!diagnosisResult ? (
-          <div className="bg-white p-6 md:p-8 rounded-none shadow-sm border border-gray-200 w-full animate-fade-in-up">
-            <div className="relative w-full h-32 flex items-center justify-center mb-6">
-              <div className="absolute w-24 h-24 bg-green-50 rounded-none -z-10"></div>
-              <Zap className="w-16 h-16 text-gray-800" strokeWidth={1} />
-              <Camera className="w-8 h-8 text-green-700 absolute bottom-4 ml-12 bg-white rounded-none p-1 border border-gray-100" strokeWidth={1.5} />
+          <div className="bg-white p-5 sm:p-8 rounded-none shadow-sm border border-gray-200 w-full animate-fade-in-up">
+            <div className="relative w-full h-28 flex items-center justify-center mb-4">
+              <div className="absolute w-24 h-24 bg-green-50 rounded-none -z-10" />
+              <div className="border border-green-200 bg-green-50 px-4 py-2 text-sm font-bold text-green-800">Gemini diagnosis</div>
             </div>
-            <h2 className="text-2xl font-extrabold text-gray-900 mb-2 text-center">What seems to be the problem?</h2>
-            <p className="text-gray-600 mb-6 text-center">Describe the issue or upload a photo. AI will analyze it instantly.</p>
-            
-            <div className="mb-6">
+            <h1 className="text-2xl font-extrabold text-gray-900 mb-2 text-center">What needs fixing?</h1>
+            <p className="text-gray-600 mb-6 text-center">Describe the issue or upload a photo. Gemini will triage it and create a demo job request.</p>
+
+            <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-2">Upload Photo</label>
-              <div 
+              <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-300 rounded-none p-8 text-center bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors relative overflow-hidden"
+                className="w-full border-2 border-dashed border-gray-300 rounded-none p-8 text-center bg-gray-50 hover:bg-gray-100 transition-colors"
               >
-                {imagePreview ? (
-                  <img src={imagePreview} alt="Preview" className="max-h-48 mx-auto rounded-none object-contain" />
-                ) : (
-                  <>
-                    <Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600 font-medium">Tap to upload a photo</p>
-                    <p className="text-xs text-gray-400 mt-1">Supported formats: JPG, PNG</p>
-                  </>
-                )}
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
-                  ref={fileInputRef}
-                  onChange={handleImageChange}
-                />
-              </div>
+                {imagePreview ? <img src={imagePreview} alt="Preview" className="max-h-48 mx-auto rounded-none object-contain" /> : <span className="text-sm text-gray-600 font-medium">Tap to upload a photo</span>}
+              </button>
+              <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
             </div>
 
-            <div className="mb-6">
+            <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-2">Describe the issue</label>
-              <textarea 
+              <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full border border-gray-300 rounded-none p-4 text-gray-800 focus:ring-2 focus:ring-green-700 focus:border-green-700 outline-none transition-all resize-none h-32"
-                placeholder="e.g. My generator is shutting off after 5 minutes..."
-              ></textarea>
+                className="w-full border border-gray-300 rounded-none p-4 text-gray-800 focus:ring-2 focus:ring-green-700 focus:border-green-700 outline-none resize-none h-32"
+                placeholder="e.g. My generator is smoking and smells like fuel..."
+              />
+            </div>
+
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+              <LocationAutocomplete defaultValue={location} onPlaceSelect={(place) => setLocation(place.formatted_address || place.name)} />
             </div>
 
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Where do you need the artisan? (Optional)</label>
-              <LocationAutocomplete placeholder="e.g. 10 Awolowo Road, Ikoyi" />
+              <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Language</label>
+              <div className="flex flex-wrap gap-2">
+                {LANGUAGES.map((lang) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => setLanguage(lang)}
+                    className={`px-3 py-1.5 text-sm font-semibold border rounded-none transition-colors ${
+                      language === lang ? "bg-green-700 text-white border-green-700" : "bg-white text-gray-700 border-gray-300 hover:border-gray-500"
+                    }`}
+                  >
+                    {lang}
+                  </button>
+                ))}
+              </div>
+              {language !== "English" && <p className="text-xs text-gray-500 mt-1.5">Gemini will respond in {language} where possible.</p>}
             </div>
 
-            <button 
+            <button
               onClick={handleAnalyze}
-              disabled={isAnalyzing || (!description && !imagePreview)}
-              className="w-full py-4 bg-green-700 text-white font-bold rounded-none shadow hover:bg-green-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isAnalyzing || (!description.trim() && !imagePreview)}
+              className="w-full py-4 bg-green-700 text-white font-bold rounded-none shadow hover:bg-green-800 flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {isAnalyzing ? (
-                <>
-                   <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-none animate-spin"></span>
-                   <span>Analyzing Workspace...</span>
-                </>
-              ) : (
-                <>
-                  <span>Analyze Issue</span>
-                  <Zap className="w-5 h-5" />
-                </>
-              )}
+              {isAnalyzing && <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-none animate-spin" />}
+              {isAnalyzing ? "Analyzing with Gemini..." : "Analyze Issue"}
             </button>
           </div>
         ) : (
           <div className="w-full space-y-6">
             <div className="bg-white p-6 rounded-none shadow-sm border border-gray-200 animate-fade-in-up">
-               <div className="flex items-center gap-3 mb-4">
-                 <div className="w-10 h-10 rounded-none bg-green-50 flex items-center justify-center text-green-700 border border-green-100">
-                   <Bot className="w-5 h-5"/>
-                 </div>
-                 <div>
-                   <h2 className="text-xl font-bold text-gray-900">Diagnosis</h2>
-                   <p className="text-sm text-gray-500">Analysis complete</p>
-                 </div>
-               </div>
-               
-               <div className="bg-gray-50 border border-gray-200 rounded-none p-4 mb-4">
-                  <h3 className="font-semibold text-gray-900 mb-1">{diagnosisResult.issue_title}</h3>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    <span className="px-2 py-1 bg-white text-xs font-medium text-gray-700 rounded-none border border-gray-200 shadow-sm">
-                      Category: {diagnosisResult.artisan_category}
-                    </span>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-none border shadow-sm ${
-                      diagnosisResult.urgency === 'High' ? 'bg-red-50 text-red-700 border-red-200' : 
-                      diagnosisResult.urgency === 'Medium' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                      'bg-green-50 text-green-700 border-green-200'
-                    }`}>
-                      Urgency: {diagnosisResult.urgency}
-                    </span>
-                    <span className="px-2 py-1 bg-white text-xs font-medium text-green-700 rounded-none border border-green-200 shadow-sm flex items-center gap-1">
-                      <Info className="w-3 h-3" /> Est: ₦{diagnosisResult.estimated_cost_naira}
-                    </span>
-                  </div>
-               </div>
-
-               {diagnosisResult.safety_warning && (
-                 <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-none mb-4">
-                   <div className="flex items-start gap-2 text-red-800">
-                     <AlertTriangle className="w-5 h-5 shrink-0" />
-                     <div>
-                       <h4 className="font-bold text-sm">Safety Warning</h4>
-                       <p className="text-sm mt-1">{diagnosisResult.safety_warning}</p>
-                     </div>
-                   </div>
-                 </div>
-               )}
-               
-               {diagnosisResult.follow_up_questions && diagnosisResult.follow_up_questions.length > 0 && (
-                 <div className="mt-4 border-t pt-4">
-                   <h4 className="text-sm font-semibold text-gray-700 mb-2">Follow up questions for the artisan:</h4>
-                   <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                     {diagnosisResult.follow_up_questions.map((q: string, i: number) => (
-                       <li key={i}>{q}</li>
-                     ))}
-                   </ul>
-                 </div>
-               )}
-            </div>
-
-            <h3 className="text-lg font-bold text-gray-900 px-1 mt-6">Recommended Artisans</h3>
-            <div className="space-y-4">
-              {recommendedArtisans.map((artisan, idx) => (
-                <div key={artisan.id} className="bg-white p-5 rounded-none shadow-sm border border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in-up" style={{animationDelay: `${idx * 0.1}s`}}>
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                       <Image unoptimized src={artisan.avatar} alt={artisan.name} width={60} height={60} className="rounded-none bg-gray-200 object-cover border border-gray-200" />
-                       {artisan.isVerified && (
-                         <div className="absolute -bottom-1 -right-1 bg-green-700 text-white rounded-none w-5 h-5 flex items-center justify-center text-xs shadow-sm border border-white" title="Verified">
-                           <ShieldCheck className="w-3 h-3" />
-                         </div>
-                       )}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-gray-900 flex items-center gap-2">
-                        {artisan.name}
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-none font-medium">{artisan.category}</span>
-                      </h4>
-                      <div className="text-sm text-gray-500 mt-1 flex items-center gap-3">
-                        <span className="flex items-center gap-1"><Star className="w-3 h-3 fill-gray-400" /> {artisan.score}% Trust</span>
-                        <span>•</span>
-                        <span>{artisan.completedJobs} jobs</span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {artisan.location}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-3">
-                    <span className="font-bold text-gray-900">{artisan.rate}</span>
-                    <button 
-                      onClick={() => handleBook(artisan)}
-                      className="px-5 py-2 bg-gray-900 text-white text-sm font-bold rounded-none shadow-sm hover:bg-gray-800 transition-colors"
-                    >
-                      Select & Book
-                    </button>
-                  </div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-none bg-green-50 flex items-center justify-center text-green-700 border border-green-100">
+                  <span className="text-xs font-black">AI</span>
                 </div>
-              ))}
-              
-              {recommendedArtisans.length === 0 && (
-                <div className="text-center p-8 bg-gray-100 rounded-none text-gray-500 text-sm border border-gray-200">
-                  No specific artisans found for this category. Showing general workers soon.
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Diagnosis saved</h2>
+                  <p className="text-sm text-gray-500">Job ref: {job?.id}</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 border border-gray-200 rounded-none p-4 mb-4">
+                <h3 className="font-semibold text-gray-900 mb-1">{diagnosisResult.issue_title}</h3>
+                <p className="text-sm text-gray-600">{diagnosisResult.summary}</p>
+                <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
+                  <span className="px-2 py-1 bg-white border border-gray-200">Category: {diagnosisResult.artisan_category}</span>
+                  <span className="px-2 py-1 bg-white border border-gray-200">Urgency: {diagnosisResult.urgency}</span>
+                  <span className="px-2 py-1 bg-white border border-green-200 text-green-700">Max: {naira(diagnosisResult.estimated_max_naira)}</span>
+                  <span className="px-2 py-1 bg-white border border-gray-200">Labor: {naira(diagnosisResult.estimated_labor_naira)}</span>
+                </div>
+              </div>
+
+              {diagnosisResult.safety_warning && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-none mb-4">
+                  <div className="flex items-start gap-2 text-red-800">
+                    <p className="text-sm">{diagnosisResult.safety_warning}</p>
+                  </div>
                 </div>
               )}
+              <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-2">First aid steps</h4>
+                  <ul className="list-disc list-inside text-gray-600 space-y-1">{diagnosisResult.first_aid_steps.map((step) => <li key={step}>{step}</li>)}</ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-800 mb-2">Questions for artisan</h4>
+                  <ul className="list-disc list-inside text-gray-600 space-y-1">{diagnosisResult.follow_up_questions.map((q) => <li key={q}>{q}</li>)}</ul>
+                </div>
+              </div>
             </div>
-            
-            <div className="pt-6 flex justify-center">
-               <button 
-                 onClick={() => { setDiagnosisResult(null); setDescription(''); setImagePreview(null); setImageFile(null); }}
-                 className="text-gray-500 hover:text-gray-900 text-sm font-medium transition-colors"
-               >
-                 Start Over
-               </button>
+
+            <h3 className="text-lg font-bold text-gray-900 px-1">Recommended Artisans</h3>
+            <div className="space-y-4">
+              {recommendedArtisans.map((artisan) => {
+                const matchReason = diagnosisResult ? getMatchReason(artisan, diagnosisResult.artisan_category, location) : "";
+                const brief = diagnosisResult?.artisan_brief;
+                return (
+                  <div key={artisan.id} className="bg-white rounded-none shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <Image unoptimized src={artisan.avatar} alt={artisan.fullName} width={60} height={60} className="rounded-none bg-gray-200 object-cover border border-gray-200" />
+                          {artisan.isVerified && <div className="absolute -bottom-1 -right-1 bg-green-700 text-white rounded-none px-1.5 py-0.5 text-[9px] font-bold border border-white">OK</div>}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-gray-900">{artisan.fullName}</h4>
+                          <div className="text-sm text-gray-500 mt-1 flex flex-wrap items-center gap-2">
+                            <span>{artisan.category}</span>
+                            <span className="hidden sm:inline">|</span>
+                            <span>{artisan.trustScore}% Trust</span>
+                            <span>{artisan.location}</span>
+                          </div>
+                          {matchReason && <p className="text-xs text-green-700 font-medium mt-1">{matchReason}</p>}
+                        </div>
+                      </div>
+                      <button onClick={() => handleBook(artisan)} className="w-full sm:w-auto px-5 py-2 bg-gray-900 text-white text-sm font-bold rounded-none hover:bg-gray-800">
+                        Select & Book
+                      </button>
+                    </div>
+                    {brief && (
+                      <details className="border-t border-gray-100">
+                        <summary className="px-5 py-2 text-xs font-semibold text-gray-500 cursor-pointer hover:bg-gray-50 select-none">
+                          AI Artisan Brief ▸
+                        </summary>
+                        <div className="px-5 pb-4 pt-2 bg-gray-50 text-xs space-y-1.5 text-gray-700">
+                          <p><span className="font-semibold text-gray-800">Problem:</span> {brief.problem_summary}</p>
+                          <p><span className="font-semibold text-gray-800">Likely cause:</span> {brief.likely_cause}</p>
+                          <p><span className="font-semibold text-gray-800">Tools needed:</span> {brief.tools_to_bring}</p>
+                          <p><span className="font-semibold text-gray-800">Safety risks:</span> {brief.safety_risks}</p>
+                          <p><span className="font-semibold text-gray-800">Estimate:</span> {brief.estimated_price_range}</p>
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                );
+              })}
+              {recommendedArtisans.length === 0 && <div className="text-center p-8 bg-gray-100 rounded-none text-gray-500 text-sm border border-gray-200">No verified artisans yet. Admin can approve applications from the admin panel.</div>}
             </div>
+
+            <button onClick={() => { setDiagnosisResult(null); setJob(null); setRecommendedArtisans([]); setImagePreview(null); setDescription(""); }} className="text-gray-500 hover:text-gray-900 text-sm font-medium">
+              Start another report
+            </button>
           </div>
         )}
       </main>
     </div>
   );
 }
-
-
