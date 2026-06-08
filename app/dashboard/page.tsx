@@ -18,6 +18,23 @@ const STATUS_BADGE: Record<string, string> = {
   not_funded:  "bg-gray-100 text-gray-500",
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  funded:      "Escrow funded",
+  accepted:    "Artisan accepted",
+  in_progress: "In progress",
+  completed:   "Job complete — pending release",
+  released:    "Payment released",
+  disputed:    "Disputed",
+  not_funded:  "Awaiting payment",
+};
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function DashboardPage() {
   const [db, setDb] = useState<HandijobDB | null>(null);
   const [reviewText, setReviewText] = useState("");
@@ -56,139 +73,204 @@ export default function DashboardPage() {
     setReviewText("");
   };
 
+  const escrow = booking?.escrowStatus;
+
   return (
-    <div className="min-h-screen bg-white font-sans pb-16">
+    <div className="min-h-screen bg-gray-50 font-sans pb-16">
       {/* Header */}
-      <div className="border-b border-gray-100 px-4 sm:px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex h-7 w-7 items-center justify-center bg-green-700 text-xs font-black text-white rounded-lg shrink-0">H</Link>
-          <div>
-            <h1 className="text-sm font-black text-gray-950 leading-tight">{user.name}</h1>
-            <p className="text-xs text-gray-400">Customer</p>
-          </div>
+      <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-2.5">
+          <Link href="/" className="flex h-8 w-8 items-center justify-center bg-green-600 text-sm font-black text-white rounded-lg shrink-0">
+            H
+          </Link>
+          <span className="text-sm font-black text-gray-950">Handijob</span>
         </div>
-        <Link href="/" className="text-xs font-black text-gray-400 hover:text-gray-950 transition-colors">← Home</Link>
+        <Link
+          href="/report"
+          className="bg-green-600 text-white text-xs font-black px-3 py-2 rounded-xl hover:bg-green-700 transition-colors"
+        >
+          + New Job
+        </Link>
       </div>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
 
-        {/* Wallet card */}
-        <div className="bg-gray-950 p-6 sm:p-8 rounded-2xl">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-2">OPay Wallet Balance</p>
-              <p className="text-[clamp(2rem,8vw,3.5rem)] font-black text-white leading-none tracking-tight">{naira(user.user_wallet_balance)}</p>
-              <p className="text-xs text-white/40 mt-2">Simulated demo wallet</p>
-            </div>
-            <div className="bg-white/8 border border-white/10 p-4 rounded-xl sm:min-w-44">
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-1">Escrow Locked</p>
-              <p className="text-2xl font-black text-white">{naira(user.escrow_balance)}</p>
-              <p className="text-xs text-white/40 mt-1">Released on completion</p>
-            </div>
-          </div>
-          <div className="mt-6 flex flex-col sm:flex-row gap-3">
-            <button className="bg-green-700 px-5 py-3 text-sm font-black text-white hover:bg-green-600 transition-colors rounded-xl">
-              Fund Wallet
-            </button>
-            <Link href="/report" className="border border-white/15 px-5 py-3 text-center text-sm font-black text-white hover:bg-white/5 transition-colors rounded-xl">
-              New Job Request →
-            </Link>
-          </div>
+        {/* Greeting */}
+        <div>
+          <h1 className="text-xl font-black text-gray-950 leading-tight">
+            {greeting()}, {user.name.split(" ")[0]}
+          </h1>
+          <p className="text-xs text-gray-400 mt-0.5 font-semibold">Customer dashboard</p>
         </div>
 
-        <div className="grid lg:grid-cols-[1fr_320px] gap-6">
-          {/* Active job */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">Active Job</h2>
-              {booking && (
-                <span className={`text-[10px] font-black uppercase px-2 py-0.5 ${STATUS_BADGE[booking.escrowStatus] ?? "bg-gray-100 text-gray-500"}`}>
-                  {booking.escrowStatus.replaceAll("_", " ")}
-                </span>
-              )}
-            </div>
-
-            {!active || !diagnosis ? (
-              <div className="border border-gray-100 p-8 text-center rounded-2xl">
-                <p className="text-sm text-gray-400 mb-4">No active job.</p>
-                <Link href="/report" className="bg-green-700 text-white px-5 py-2.5 text-sm font-black hover:bg-green-800 transition-colors rounded-xl">
-                  Post a Job →
-                </Link>
-              </div>
-            ) : (
-              <div className="border border-gray-200 p-5 space-y-4 rounded-xl">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="font-black text-gray-950 text-base leading-snug">{diagnosis.issue_title}</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">{artisan?.fullName ?? "No artisan yet"} · {active.location}</p>
-                  </div>
-                  {booking && <span className="font-black text-gray-950 text-lg shrink-0">{naira(booking.quoteAmount)}</span>}
-                </div>
-
-                <div className="grid grid-cols-3 gap-3 border-t border-gray-100 pt-4">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Artisan</p>
-                    <p className="text-sm font-black text-gray-950 mt-0.5 truncate">{artisan?.fullName ?? "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Quote</p>
-                    <p className="text-sm font-black text-gray-950 mt-0.5">{booking ? naira(booking.quoteAmount) : "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Status</p>
-                    <p className="text-sm font-black text-gray-950 mt-0.5 capitalize">{active.status.replaceAll("_", " ")}</p>
-                  </div>
-                </div>
-
-                {booking && (
-                  <div className="flex flex-col sm:flex-row gap-2 border-t border-gray-100 pt-4">
-                    <button
-                      onClick={() => run("user_release")}
-                      disabled={!canRelease}
-                      title={!canRelease ? "Available after artisan marks job complete" : ""}
-                      className="flex-1 py-3 bg-gray-950 text-white text-sm font-black hover:bg-gray-800 transition-colors disabled:opacity-30 rounded-lg"
-                    >
-                      {canRelease ? "Release Payment" : "Awaiting Completion"}
-                    </button>
-                    <button
-                      onClick={() => run("open_dispute")}
-                      disabled={booking.escrowStatus === "released"}
-                      className="flex-1 py-3 border border-red-200 text-red-600 text-sm font-black hover:bg-red-50 transition-colors disabled:opacity-30 rounded-lg"
-                    >
-                      Open Dispute
-                    </button>
-                    <Link href={`/booking?bookingId=${booking.id}`} className="flex-1 py-3 border border-gray-200 text-sm font-black text-gray-700 hover:bg-gray-50 transition-colors text-center rounded-lg">
-                      View Details
-                    </Link>
-                  </div>
-                )}
-
-                <JobChat jobId={active.id} currentUserType="user" />
-
-                {active.status === "released" && (
-                  <div className="flex gap-2 pt-2 border-t border-gray-100">
-                    <input
-                      value={reviewText}
-                      onChange={(e) => setReviewText(e.target.value)}
-                      placeholder="Leave a review for the artisan…"
-                      className="flex-1 border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 rounded-lg"
-                    />
-                    <button onClick={submitReview} className="bg-green-700 px-4 py-2 text-sm font-black text-white hover:bg-green-800 transition-colors rounded-lg">
-                      Submit
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+        {/* Compact payment strip */}
+        <div className="bg-white rounded-2xl border border-gray-100 px-5 py-3.5 flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Wallet</p>
+            <p className="text-base font-black text-gray-950 leading-tight">{naira(user.user_wallet_balance)}</p>
           </div>
+          <div className="w-px h-8 bg-gray-100 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Escrowed</p>
+            <p className="text-base font-black text-yellow-600 leading-tight">{naira(user.escrow_balance)}</p>
+          </div>
+          <div className="w-px h-8 bg-gray-100 shrink-0" />
+          <Link
+            href="/report"
+            className="text-xs font-black text-green-600 hover:text-green-700 transition-colors whitespace-nowrap shrink-0"
+          >
+            New job →
+          </Link>
+        </div>
 
-          {/* Sidebar */}
-          <aside className="space-y-4">
-            {/* Transactions */}
+        {/* Active job card */}
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Active Job</p>
+
+          {!active || !diagnosis ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+              <p className="text-sm font-semibold text-gray-400 mb-4">No active job right now.</p>
+              <Link
+                href="/report"
+                className="inline-block bg-green-600 text-white text-sm font-black px-5 py-2.5 rounded-xl hover:bg-green-700 transition-colors"
+              >
+                Report New Issue →
+              </Link>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
+              {/* Job header row */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-black text-gray-950 text-base leading-snug">{diagnosis.issue_title}</h2>
+                  <p className="text-xs text-gray-400 mt-0.5 font-semibold">
+                    {artisan?.fullName ?? "No artisan yet"} · {active.location}
+                  </p>
+                </div>
+                <div className="text-right shrink-0 space-y-1">
+                  {booking && <p className="font-black text-gray-950 text-lg leading-none">{naira(booking.quoteAmount)}</p>}
+                  {escrow && (
+                    <span className={`inline-block rounded-full text-[10px] font-black px-2.5 py-1 ${STATUS_BADGE[escrow] ?? "bg-gray-100 text-gray-500"}`}>
+                      {STATUS_LABEL[escrow] ?? escrow.replaceAll("_", " ")}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Action zone */}
+              {booking ? (
+                <div className="space-y-2 border-t border-gray-100 pt-4">
+                  {canRelease && (
+                    <>
+                      <button
+                        onClick={() => run("user_release")}
+                        className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors"
+                      >
+                        Release Payment →
+                      </button>
+                      <button
+                        onClick={() => run("open_dispute")}
+                        className="w-full py-2.5 border border-red-200 text-red-600 text-sm font-black rounded-xl hover:bg-red-50 transition-colors"
+                      >
+                        Open Dispute
+                      </button>
+                    </>
+                  )}
+
+                  {(escrow === "funded" || escrow === "accepted" || escrow === "in_progress") && (
+                    <>
+                      <div className="w-full py-3 bg-gray-100 text-gray-400 text-sm font-black rounded-xl text-center select-none">
+                        {escrow === "funded" && "Waiting for artisan to accept"}
+                        {escrow === "accepted" && "Waiting for artisan to start"}
+                        {escrow === "in_progress" && "Waiting for artisan to complete"}
+                      </div>
+                      <button
+                        onClick={() => run("open_dispute")}
+                        className="w-full py-2 border border-red-200 text-red-600 text-xs font-black rounded-xl hover:bg-red-50 transition-colors"
+                      >
+                        Open Dispute
+                      </button>
+                    </>
+                  )}
+
+                  {escrow === "released" && (
+                    <>
+                      <Link
+                        href={`/booking?bookingId=${booking.id}`}
+                        className="block w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors text-center"
+                      >
+                        View Booking Details →
+                      </Link>
+                      {active.status === "released" && (
+                        <div className="flex gap-2 pt-1">
+                          <input
+                            value={reviewText}
+                            onChange={(e) => setReviewText(e.target.value)}
+                            placeholder="Leave a review for the artisan…"
+                            className="flex-1 border border-gray-200 px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 rounded-xl"
+                          />
+                          <button
+                            onClick={submitReview}
+                            className="bg-green-600 px-4 py-2 text-sm font-black text-white hover:bg-green-700 transition-colors rounded-xl"
+                          >
+                            Submit
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {escrow === "disputed" && (
+                    <div className="w-full py-3 bg-red-50 border border-red-200 text-red-700 text-sm font-black rounded-xl text-center select-none">
+                      Dispute under review
+                    </div>
+                  )}
+
+                  {/* Always: small view link */}
+                  <Link
+                    href={`/booking?bookingId=${booking.id}`}
+                    className="block text-center text-xs font-black text-gray-400 hover:text-gray-600 transition-colors pt-1"
+                  >
+                    View full booking ↗
+                  </Link>
+                </div>
+              ) : (
+                <div className="border-t border-gray-100 pt-4">
+                  <Link
+                    href="/report"
+                    className="block w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors text-center"
+                  >
+                    View Booking →
+                  </Link>
+                </div>
+              )}
+
+              {/* Chat collapsed */}
+              <details className="border-t border-gray-100 pt-3">
+                <summary className="text-[10px] font-black uppercase tracking-widest text-gray-400 cursor-pointer select-none list-none flex items-center justify-between">
+                  <span>Messages</span>
+                  <span className="text-gray-300">▾</span>
+                </summary>
+                <div className="mt-3">
+                  <JobChat jobId={active.id} currentUserType="user" />
+                </div>
+              </details>
+            </div>
+          )}
+        </div>
+
+        {/* Activity & History */}
+        <details className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <summary className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 cursor-pointer select-none list-none flex items-center justify-between hover:bg-gray-50 transition-colors">
+            <span>Activity &amp; History</span>
+            <span className="text-gray-300">▾</span>
+          </summary>
+          <div className="px-5 pb-5 space-y-5 border-t border-gray-100 pt-4">
+            {/* Recent transactions */}
             <div>
-              <h2 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">Recent Transactions</h2>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Recent Transactions</p>
               {transactions.length === 0 ? (
-                <div className="border border-gray-100 p-5 text-center text-sm text-gray-400">No transactions yet.</div>
+                <p className="text-xs text-gray-400 font-semibold py-3 text-center">No transactions yet.</p>
               ) : (
                 <div className="space-y-2">
                   {transactions.map((tx) => <TxRow key={tx.id} tx={tx} />)}
@@ -196,19 +278,23 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Job history */}
+            {/* All jobs */}
             <div>
-              <h2 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">All Jobs</h2>
-              <div className="space-y-1">
-                {jobs.map((job) => {
-                  const d = db.diagnoses.find((x) => x.id === job.diagnosisId);
-                  const b = job.bookingId ? db.bookings.find((x) => x.id === job.bookingId) : undefined;
-                  return <JobRow key={job.id} job={job} diagnosis={d} booking={b} />;
-                })}
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">All Jobs</p>
+              <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 overflow-hidden">
+                {jobs.length === 0 ? (
+                  <p className="text-xs text-gray-400 font-semibold py-4 text-center">No jobs yet.</p>
+                ) : (
+                  jobs.map((job) => {
+                    const d = db.diagnoses.find((x) => x.id === job.diagnosisId);
+                    const b = job.bookingId ? db.bookings.find((x) => x.id === job.bookingId) : undefined;
+                    return <JobRow key={job.id} job={job} diagnosis={d} booking={b} />;
+                  })
+                )}
               </div>
             </div>
-          </aside>
-        </div>
+          </div>
+        </details>
 
       </main>
     </div>
@@ -217,7 +303,7 @@ export default function DashboardPage() {
 
 function TxRow({ tx }: { tx: EscrowTransaction }) {
   return (
-    <div className="flex items-center justify-between border border-gray-100 p-3 rounded-xl">
+    <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
       <div>
         <p className="text-xs font-black text-gray-950 capitalize">{tx.action.replaceAll("_", " ")}</p>
         <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{tx.reference}</p>
@@ -229,10 +315,13 @@ function TxRow({ tx }: { tx: EscrowTransaction }) {
 
 function JobRow({ job, diagnosis, booking }: { job: JobRequest; diagnosis?: DiagnosisRecord; booking?: Booking }) {
   return (
-    <Link href={booking ? `/booking?bookingId=${booking.id}` : "/report"} className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 px-1 group transition-colors">
+    <Link
+      href={booking ? `/booking?bookingId=${booking.id}` : "/report"}
+      className="flex items-center justify-between py-3 px-4 hover:bg-gray-50 transition-colors"
+    >
       <div className="min-w-0">
         <p className="text-xs font-black text-gray-950 truncate">{diagnosis?.issue_title ?? job.description}</p>
-        <p className="text-[10px] text-gray-400 capitalize mt-0.5">{job.status.replaceAll("_", " ")}</p>
+        <p className="text-[10px] text-gray-400 font-semibold capitalize mt-0.5">{job.status.replaceAll("_", " ")}</p>
       </div>
       <p className="text-xs font-black text-gray-950 shrink-0 ml-3">{booking ? naira(booking.quoteAmount) : "—"}</p>
     </Link>
