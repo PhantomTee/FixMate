@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import JobChat from "@/components/JobChat";
 import { CATEGORY_INVENTORY, escrowAction, loadDb, resetDemoDb, saveInventoryItem } from "@/lib/demo-db";
-import { FixMateDB } from "@/lib/types";
+import { HandijobDB } from "@/lib/types";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
 
@@ -19,7 +19,7 @@ const ESCROW_BADGE: Record<string, string> = {
 };
 
 export default function ArtisanDashboardPage() {
-  const [db, setDb] = useState<FixMateDB | null>(null);
+  const [db, setDb] = useState<HandijobDB | null>(null);
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
   const [actionError, setActionError] = useState<Record<string, string>>({});
   const [showInventory, setShowInventory] = useState(false);
@@ -27,8 +27,8 @@ export default function ArtisanDashboardPage() {
   const refresh = () => setDb(loadDb());
   useEffect(() => {
     refresh();
-    window.addEventListener("fixmate-db-updated", refresh);
-    return () => window.removeEventListener("fixmate-db-updated", refresh);
+    window.addEventListener("handijob-db-updated", refresh);
+    return () => window.removeEventListener("handijob-db-updated", refresh);
   }, []);
 
   if (!db) return null;

@@ -21,8 +21,8 @@ export default function JobChat({ jobId, currentUserType }: JobChatProps) {
   useEffect(() => {
     loadMessages();
     const onUpdate = () => loadMessages();
-    window.addEventListener("fixmate-db-updated", onUpdate);
-    return () => window.removeEventListener("fixmate-db-updated", onUpdate);
+    window.addEventListener("handijob-db-updated", onUpdate);
+    return () => window.removeEventListener("handijob-db-updated", onUpdate);
   }, [loadMessages]);
 
   useEffect(() => {

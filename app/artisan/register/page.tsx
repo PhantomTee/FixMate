@@ -41,7 +41,7 @@ export default function ArtisanRegisterPage() {
           <div className="relative w-full h-20 flex items-center justify-center mb-4">
             <div className="border border-green-200 bg-green-50 px-4 py-2 text-sm font-bold text-green-800">Verified artisan application</div>
           </div>
-          <h1 className="text-2xl font-extrabold text-gray-900 mb-2 text-center">Join FixMate</h1>
+          <h1 className="text-2xl font-extrabold text-gray-900 mb-2 text-center">Join Handijob</h1>
           <p className="text-gray-600 mb-6 text-center text-sm">Applications are saved for admin approval. Completed jobs carry a 10% artisan escrow fee.</p>
 
           <form onSubmit={submit} className="space-y-4">

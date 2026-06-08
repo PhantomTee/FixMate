@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { escrowAction, loadDb, resetDemoDb, updateArtisan } from "@/lib/demo-db";
 import { generateDisputeSummary } from "@/app/actions";
-import { DisputeSummary, FixMateDB } from "@/lib/types";
+import { DisputeSummary, HandijobDB } from "@/lib/types";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
 
@@ -25,7 +25,7 @@ const ESCROW_BADGE: Record<string, string> = {
 };
 
 export default function AdminPage() {
-  const [db, setDb] = useState<FixMateDB | null>(null);
+  const [db, setDb] = useState<HandijobDB | null>(null);
   const [disputeSummaries, setDisputeSummaries] = useState<Record<string, DisputeSummary>>({});
   const [loadingSummary, setLoadingSummary] = useState<string | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
@@ -33,8 +33,8 @@ export default function AdminPage() {
   const refresh = () => setDb(loadDb());
   useEffect(() => {
     refresh();
-    window.addEventListener("fixmate-db-updated", refresh);
-    return () => window.removeEventListener("fixmate-db-updated", refresh);
+    window.addEventListener("handijob-db-updated", refresh);
+    return () => window.removeEventListener("handijob-db-updated", refresh);
   }, []);
 
   const runEscrow = (bookingId: string, action: "admin_release" | "admin_refund", note: string) => {

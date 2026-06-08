@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   return NextResponse.json({
-    info: "FixMate OPay Webhook Simulator",
+    info: "Handijob OPay Webhook Simulator",
     usage: "POST with { reference: string, status: string }",
     validStatuses: ["initiated", "pending", "paid", "failed", "expired", "released", "refunded"],
     demo: true,

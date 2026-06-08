@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", sans-serif;
   --color-brand: #16a34a;        /* green-600 */
   --color-brand-dark: #15803d;   /* green-700 */
   --color-brand-vivid: #00e676;  /* neon green for card accents */

@@ -30,7 +30,7 @@ export async function diagnoseIssue(
         ? `Respond in ${language} for user-facing fields (issue_title, summary, safety_warning, first_aid_steps, follow_up_questions). Keep artisan_category and urgency in English.`
         : "Respond in English.";
 
-    const prompt = `You are FixMate AI, a careful Nigerian home/service repair triage assistant.
+    const prompt = `You are Handijob AI, a careful Nigerian home/service repair triage assistant.
 Return JSON only. Do not include markdown.
 
 ${langNote}
@@ -97,7 +97,7 @@ export async function generateArtisanBrief(
     if (!apiKey) return mockArtisanBrief(diagnosis);
 
     const ai = new GoogleGenAI({ apiKey });
-    const prompt = `You are FixMate AI creating a pre-job brief for a Nigerian artisan.
+    const prompt = `You are Handijob AI creating a pre-job brief for a Nigerian artisan.
 Return JSON only. No markdown.
 
 Diagnosis: ${JSON.stringify({ title: diagnosis.issue_title, category: diagnosis.artisan_category, summary: diagnosis.summary })}
@@ -161,7 +161,7 @@ export async function checkQuoteFairness(
     if (!apiKey) return localQuoteFairness(artisanQuote, diagnosis);
 
     const ai = new GoogleGenAI({ apiKey });
-    const prompt = `You are FixMate AI reviewing a Nigerian artisan's quote.
+    const prompt = `You are Handijob AI reviewing a Nigerian artisan's quote.
 Return JSON only. No markdown.
 
 Job: ${diagnosis.issue_title} (${diagnosis.artisan_category})
@@ -210,7 +210,7 @@ export async function generateDisputeSummary(input: {
     if (!apiKey) return mockDisputeSummary(input);
 
     const ai = new GoogleGenAI({ apiKey });
-    const prompt = `You are FixMate AI summarizing a payment dispute for a platform admin.
+    const prompt = `You are Handijob AI summarizing a payment dispute for a platform admin.
 Return JSON only. No markdown.
 
 Dispute details:
@@ -382,7 +382,7 @@ function mockDiagnosis(desc: string, language: SupportedLanguage): JobDiagnosis 
                  language === "Hausa"  ? `Matsalar ${category}` :
                  language === "Igbo"   ? `Nsogbu ${category}` :
                  category === "Other"  ? "General repair request" : `${category} inspection needed`,
-    summary: "FixMate AI generated a safe preliminary assessment and matched the likely artisan category for a Nigerian service visit.",
+    summary: "Handijob AI generated a safe preliminary assessment and matched the likely artisan category for a Nigerian service visit.",
     artisan_category: category,
     urgency: dangerous ? "High" : "Medium",
     estimated_min_naira: dangerous ? 25000 : 12000,

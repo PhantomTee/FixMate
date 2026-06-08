@@ -256,7 +256,7 @@ export type InventoryItem = {
   createdAt: string;
 };
 
-export type FixMateDB = {
+export type HandijobDB = {
   users: User[];
   artisans: Artisan[];
   job_requests: JobRequest[];

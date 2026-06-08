@@ -8,7 +8,7 @@ import { diagnoseIssue } from "@/app/actions";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
 import { createBooking, createJobWithDiagnosis, getMatchReason, matchArtisans } from "@/lib/demo-db";
 import { Artisan, DiagnosisRecord, JobRequest, SupportedLanguage } from "@/lib/types";
-import { useFixMateStore } from "@/lib/store";
+import { useHandijobStore } from "@/lib/store";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
 const LANGUAGES: SupportedLanguage[] = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"];
@@ -23,9 +23,9 @@ const URGENCY_COLOR: Record<string, string> = {
 export default function ReportPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const setDiagnosisState = useFixMateStore((s) => s.setDiagnosis);
-  const setSelectedArtisan = useFixMateStore((s) => s.setSelectedArtisan);
-  const setActiveJobId = useFixMateStore((s) => s.setActiveJobId);
+  const setDiagnosisState = useHandijobStore((s) => s.setDiagnosis);
+  const setSelectedArtisan = useHandijobStore((s) => s.setSelectedArtisan);
+  const setActiveJobId = useHandijobStore((s) => s.setActiveJobId);
 
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("Yaba, Lagos");

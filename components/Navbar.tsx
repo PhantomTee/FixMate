@@ -22,8 +22,8 @@ export default function Navbar() {
 
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <span className="flex h-8 w-8 items-center justify-center bg-green-700 text-sm font-black text-white">F</span>
-            <span className="text-base font-black tracking-tight text-gray-950">FixMate</span>
+            <span className="flex h-8 w-8 items-center justify-center bg-green-700 text-sm font-black text-white rounded-lg">H</span>
+            <span className="text-base font-black tracking-tight text-gray-950">Handijob</span>
           </Link>
 
           {/* Desktop nav */}
@@ -44,20 +44,29 @@ export default function Navbar() {
             <Link href="/dashboard" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
               Sign In
             </Link>
-            <Link href="/artisan/register" className="bg-green-700 px-5 py-2 text-sm font-black text-white hover:bg-green-800 transition-colors">
+            <Link href="/artisan/register" className="bg-green-700 px-5 py-2 text-sm font-black text-white hover:bg-green-800 transition-colors rounded-lg">
               Offer Your Skills
             </Link>
-            <Link href="/report" className="bg-gray-950 px-5 py-2 text-sm font-black text-white hover:bg-gray-800 transition-colors">
+            <Link href="/report" className="bg-gray-950 px-5 py-2 text-sm font-black text-white hover:bg-gray-800 transition-colors rounded-lg">
               Hire an Artisan
             </Link>
           </div>
 
-          {/* Mobile menu button */}
+          {/* Mobile menu button — hamburger */}
           <button
-            className="border border-gray-200 px-3 py-2 text-xs font-black uppercase tracking-wider text-gray-900 md:hidden"
+            className="p-2 text-gray-900 hover:bg-gray-50 rounded-lg md:hidden transition-colors"
             onClick={() => setIsOpen((o) => !o)}
+            aria-label={isOpen ? "Close menu" : "Open menu"}
           >
-            {isOpen ? "Close" : "Menu"}
+            {isOpen ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            )}
           </button>
         </div>
       </header>
@@ -73,10 +82,10 @@ export default function Navbar() {
             <Link href="/artisan/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Artisan Hub</Link>
             <Link href="/artisan/register"  onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Become an Artisan</Link>
             <div className="px-6 py-5 space-y-3">
-              <Link href="/report" onClick={close} className="block w-full bg-green-700 text-white text-center py-3.5 text-sm font-black hover:bg-green-800">
+              <Link href="/report" onClick={close} className="block w-full bg-green-700 text-white text-center py-3.5 text-sm font-black hover:bg-green-800 rounded-xl">
                 Hire an Artisan →
               </Link>
-              <Link href="/artisan/register" onClick={close} className="block w-full border border-gray-950 text-gray-950 text-center py-3.5 text-sm font-black hover:bg-gray-50">
+              <Link href="/artisan/register" onClick={close} className="block w-full border border-gray-950 text-gray-950 text-center py-3.5 text-sm font-black hover:bg-gray-50 rounded-xl">
                 Offer Your Skills
               </Link>
             </div>

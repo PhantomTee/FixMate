@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import JobChat from "@/components/JobChat";
 import { DEMO_USER_ID, escrowAction, loadDb, saveReview } from "@/lib/demo-db";
-import { Booking, DiagnosisRecord, EscrowTransaction, FixMateDB, JobRequest } from "@/lib/types";
+import { Booking, DiagnosisRecord, EscrowTransaction, HandijobDB, JobRequest } from "@/lib/types";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
 
@@ -19,14 +19,14 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const [db, setDb] = useState<FixMateDB | null>(null);
+  const [db, setDb] = useState<HandijobDB | null>(null);
   const [reviewText, setReviewText] = useState("");
 
   const refresh = () => setDb(loadDb());
   useEffect(() => {
     refresh();
-    window.addEventListener("fixmate-db-updated", refresh);
-    return () => window.removeEventListener("fixmate-db-updated", refresh);
+    window.addEventListener("handijob-db-updated", refresh);
+    return () => window.removeEventListener("handijob-db-updated", refresh);
   }, []);
 
   const data = useMemo(() => {
@@ -61,7 +61,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="border-b border-gray-100 px-4 sm:px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex h-7 w-7 items-center justify-center bg-green-700 text-xs font-black text-white shrink-0">F</Link>
+          <Link href="/" className="flex h-7 w-7 items-center justify-center bg-green-700 text-xs font-black text-white rounded-lg shrink-0">H</Link>
           <div>
             <h1 className="text-sm font-black text-gray-950 leading-tight">{user.name}</h1>
             <p className="text-xs text-gray-400">Customer</p>
@@ -73,24 +73,24 @@ export default function DashboardPage() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* Wallet card */}
-        <div className="bg-gray-950 p-6 sm:p-8">
+        <div className="bg-gray-950 p-6 sm:p-8 rounded-2xl">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-2">OPay Wallet Balance</p>
               <p className="text-[clamp(2rem,8vw,3.5rem)] font-black text-white leading-none tracking-tight">{naira(user.user_wallet_balance)}</p>
               <p className="text-xs text-white/40 mt-2">Simulated demo wallet</p>
             </div>
-            <div className="bg-white/8 border border-white/10 p-4 sm:min-w-44">
+            <div className="bg-white/8 border border-white/10 p-4 rounded-xl sm:min-w-44">
               <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-1">Escrow Locked</p>
               <p className="text-2xl font-black text-white">{naira(user.escrow_balance)}</p>
               <p className="text-xs text-white/40 mt-1">Released on completion</p>
             </div>
           </div>
           <div className="mt-6 flex flex-col sm:flex-row gap-3">
-            <button className="bg-green-700 px-5 py-3 text-sm font-black text-white hover:bg-green-600 transition-colors">
+            <button className="bg-green-700 px-5 py-3 text-sm font-black text-white hover:bg-green-600 transition-colors rounded-xl">
               Fund Wallet
             </button>
-            <Link href="/report" className="border border-white/15 px-5 py-3 text-center text-sm font-black text-white hover:bg-white/5 transition-colors">
+            <Link href="/report" className="border border-white/15 px-5 py-3 text-center text-sm font-black text-white hover:bg-white/5 transition-colors rounded-xl">
               New Job Request →
             </Link>
           </div>
@@ -109,14 +109,14 @@ export default function DashboardPage() {
             </div>
 
             {!active || !diagnosis ? (
-              <div className="border border-gray-100 p-8 text-center">
+              <div className="border border-gray-100 p-8 text-center rounded-2xl">
                 <p className="text-sm text-gray-400 mb-4">No active job.</p>
-                <Link href="/report" className="bg-green-700 text-white px-5 py-2.5 text-sm font-black hover:bg-green-800 transition-colors">
-                  Report an Issue →
+                <Link href="/report" className="bg-green-700 text-white px-5 py-2.5 text-sm font-black hover:bg-green-800 transition-colors rounded-xl">
+                  Post a Job →
                 </Link>
               </div>
             ) : (
-              <div className="border border-gray-200 p-5 space-y-4">
+              <div className="border border-gray-200 p-5 space-y-4 rounded-xl">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="font-black text-gray-950 text-base leading-snug">{diagnosis.issue_title}</h3>
@@ -146,18 +146,18 @@ export default function DashboardPage() {
                       onClick={() => run("user_release")}
                       disabled={!canRelease}
                       title={!canRelease ? "Available after artisan marks job complete" : ""}
-                      className="flex-1 py-3 bg-gray-950 text-white text-sm font-black hover:bg-gray-800 transition-colors disabled:opacity-30"
+                      className="flex-1 py-3 bg-gray-950 text-white text-sm font-black hover:bg-gray-800 transition-colors disabled:opacity-30 rounded-lg"
                     >
                       {canRelease ? "Release Payment" : "Awaiting Completion"}
                     </button>
                     <button
                       onClick={() => run("open_dispute")}
                       disabled={booking.escrowStatus === "released"}
-                      className="flex-1 py-3 border border-red-200 text-red-600 text-sm font-black hover:bg-red-50 transition-colors disabled:opacity-30"
+                      className="flex-1 py-3 border border-red-200 text-red-600 text-sm font-black hover:bg-red-50 transition-colors disabled:opacity-30 rounded-lg"
                     >
                       Open Dispute
                     </button>
-                    <Link href={`/booking?bookingId=${booking.id}`} className="flex-1 py-3 border border-gray-200 text-sm font-black text-gray-700 hover:bg-gray-50 transition-colors text-center">
+                    <Link href={`/booking?bookingId=${booking.id}`} className="flex-1 py-3 border border-gray-200 text-sm font-black text-gray-700 hover:bg-gray-50 transition-colors text-center rounded-lg">
                       View Details
                     </Link>
                   </div>
@@ -171,9 +171,9 @@ export default function DashboardPage() {
                       value={reviewText}
                       onChange={(e) => setReviewText(e.target.value)}
                       placeholder="Leave a review for the artisan…"
-                      className="flex-1 border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+                      className="flex-1 border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 rounded-lg"
                     />
-                    <button onClick={submitReview} className="bg-green-700 px-4 py-2 text-sm font-black text-white hover:bg-green-800 transition-colors">
+                    <button onClick={submitReview} className="bg-green-700 px-4 py-2 text-sm font-black text-white hover:bg-green-800 transition-colors rounded-lg">
                       Submit
                     </button>
                   </div>
@@ -217,7 +217,7 @@ export default function DashboardPage() {
 
 function TxRow({ tx }: { tx: EscrowTransaction }) {
   return (
-    <div className="flex items-center justify-between border border-gray-100 p-3">
+    <div className="flex items-center justify-between border border-gray-100 p-3 rounded-xl">
       <div>
         <p className="text-xs font-black text-gray-950 capitalize">{tx.action.replaceAll("_", " ")}</p>
         <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{tx.reference}</p>

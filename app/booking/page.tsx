@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { escrowAction, loadDb } from "@/lib/demo-db";
 import { createPaymentIntent } from "@/lib/opay-simulator";
-import { Artisan, Booking, DiagnosisRecord, FixMateDB, JobRequest } from "@/lib/types";
+import { Artisan, Booking, DiagnosisRecord, HandijobDB, JobRequest } from "@/lib/types";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
 
@@ -23,7 +23,7 @@ const STATUS_META: Record<string, { label: string; color: string; hint: string }
 
 export default function BookingPage() {
   const router = useRouter();
-  const [db, setDb] = useState<FixMateDB | null>(null);
+  const [db, setDb] = useState<HandijobDB | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [error, setError] = useState("");
@@ -39,8 +39,8 @@ export default function BookingPage() {
 
   useEffect(() => {
     const refresh = () => setDb(loadDb());
-    window.addEventListener("fixmate-db-updated", refresh);
-    return () => window.removeEventListener("fixmate-db-updated", refresh);
+    window.addEventListener("handijob-db-updated", refresh);
+    return () => window.removeEventListener("handijob-db-updated", refresh);
   }, []);
 
   const data = useMemo(() => {
