@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import JobChat from "@/components/JobChat";
 import { CATEGORY_INVENTORY, escrowAction, loadDb, resetDemoDb, saveInventoryItem } from "@/lib/demo-db";
-import { calculateTrustScore, getTrustTier } from "@/lib/trust-score";
 import { FixMateDB } from "@/lib/types";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
@@ -40,8 +39,6 @@ export default function ArtisanDashboardPage() {
   const lowStock = inventory.filter((i) => i.quantity <= i.lowStockAt);
   const reviews = db.reviews.filter((r) => r.artisanId === artisan.id);
   const disputes = db.disputes.filter((d) => d.artisanId === artisan.id);
-  const trust = calculateTrustScore(artisan, jobs, reviews, disputes);
-  const tier = getTrustTier(trust.total);
   const suggestedItems = CATEGORY_INVENTORY[artisan.category] ?? [];
 
   const run = (bookingId: string, action: "artisan_accept" | "artisan_decline" | "mark_in_progress" | "mark_completed") => {
@@ -94,39 +91,8 @@ export default function ArtisanDashboardPage() {
           <MetricCard label="Available" value={naira(artisan.artisan_available_balance)} sub="Ready to withdraw" />
           <MetricCard label="In Escrow" value={naira(artisan.artisan_pending_balance)} sub="Releases on completion" />
           <MetricCard label="Jobs Done" value={String(artisan.completedJobs)} sub={`${reviews.length} review${reviews.length !== 1 ? "s" : ""}`} />
-          <div className="border border-gray-200 p-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Trust Score</p>
-            <p className="text-2xl font-black text-green-700">{trust.total}%</p>
-            <span className={`text-[10px] font-black px-1.5 py-0.5 ${tier.color}`}>{tier.label}</span>
-          </div>
+          <MetricCard label="Rating" value={artisan.rating ? `${artisan.rating}★` : "—"} sub={artisan.isVerified ? "✓ Verified" : "Not verified"} />
         </div>
-
-        {/* Trust breakdown (collapsed) */}
-        <details className="border border-gray-100">
-          <summary className="px-4 py-3 text-xs font-black uppercase tracking-widest text-gray-400 cursor-pointer hover:bg-gray-50 select-none">
-            Trust Score Breakdown ▸
-          </summary>
-          <div className="px-4 pb-4 grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2">
-            {[
-              { label: "Completed Jobs", score: trust.completedJobsScore, max: 30 },
-              { label: "Verified ID",    score: trust.verifiedIdScore,    max: 20 },
-              { label: "Reviews",        score: trust.reviewRatingScore,  max: 20 },
-              { label: "Dispute Rate",   score: trust.disputeRateScore,   max: 15 },
-              { label: "Response Speed", score: trust.responseSpeedScore, max: 10 },
-              { label: "Profile",        score: trust.profileScore,       max: 5 },
-            ].map((item) => (
-              <div key={item.label} className="bg-gray-50 border border-gray-100 p-3">
-                <p className="text-[10px] text-gray-500 font-semibold">{item.label} ({item.max}%)</p>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <div className="flex-1 bg-gray-200 h-1">
-                    <div className="bg-green-600 h-1" style={{ width: `${(item.score / item.max) * 100}%` }} />
-                  </div>
-                  <span className="text-xs font-black text-gray-800">{item.score}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </details>
 
         {/* Active jobs */}
         <div>

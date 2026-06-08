@@ -82,7 +82,7 @@ export default function ReportPage() {
       <div className="border-b border-gray-100 px-4 sm:px-6 py-4 flex items-center gap-3">
         <Link href="/" className="text-gray-400 hover:text-gray-950 text-sm font-black tracking-wide transition-colors">← Home</Link>
         <span className="text-gray-200">/</span>
-        <span className="text-sm font-black text-gray-950 tracking-tight">Report Issue</span>
+        <span className="text-sm font-black text-gray-950 tracking-tight">Post a Job</span>
       </div>
 
       <main className="max-w-xl mx-auto px-4 sm:px-6 py-8 sm:py-12">

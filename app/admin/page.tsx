@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { escrowAction, loadDb, resetDemoDb, updateArtisan } from "@/lib/demo-db";
-import { calculateTrustScore, getTrustTier } from "@/lib/trust-score";
 import { generateDisputeSummary } from "@/app/actions";
 import { DisputeSummary, FixMateDB } from "@/lib/types";
 
@@ -206,18 +205,12 @@ export default function AdminPage() {
                 <tr className="border-b border-gray-200">
                   <Th>Name</Th>
                   <Th>Category</Th>
-                  <Th>Trust</Th>
                   <Th>Status</Th>
                   <Th>Actions</Th>
                 </tr>
               </thead>
               <tbody>
                 {db.artisans.map((artisan) => {
-                  const artisanJobs = db.job_requests.filter((j) => j.selectedArtisanId === artisan.id);
-                  const artisanReviews = db.reviews.filter((r) => r.artisanId === artisan.id);
-                  const artisanDisputes = db.disputes.filter((d) => d.artisanId === artisan.id);
-                  const trust = calculateTrustScore(artisan, artisanJobs, artisanReviews, artisanDisputes);
-                  const tier = getTrustTier(trust.total);
                   return (
                     <tr key={artisan.id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-3 pr-4">
@@ -225,14 +218,6 @@ export default function AdminPage() {
                         <p className="text-xs text-gray-400">{artisan.location}</p>
                       </td>
                       <td className="pr-4 text-xs text-gray-600">{artisan.category}</td>
-                      <td className="pr-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 bg-gray-200 h-1">
-                            <div className="bg-green-600 h-1" style={{ width: `${trust.total}%` }} />
-                          </div>
-                          <span className={`text-[10px] font-black px-1.5 py-0.5 ${tier.color}`}>{trust.total}%</span>
-                        </div>
-                      </td>
                       <td className="pr-4">
                         <span className={`text-[10px] font-black uppercase px-2 py-0.5 ${STATUS_BADGE[artisan.applicationStatus] ?? ""}`}>
                           {artisan.applicationStatus}
