@@ -3,11 +3,27 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { escrowAction, loadDb, resetDemoDb, updateArtisan } from "@/lib/demo-db";
-import { calculateTrustScore, getTrustTier, TRUST_SCORE_WEIGHTS } from "@/lib/trust-score";
+import { calculateTrustScore, getTrustTier } from "@/lib/trust-score";
 import { generateDisputeSummary } from "@/app/actions";
 import { DisputeSummary, FixMateDB } from "@/lib/types";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
+
+const STATUS_BADGE: Record<string, string> = {
+  approved: "bg-green-100 text-green-800",
+  rejected: "bg-red-100 text-red-700",
+  pending:  "bg-yellow-100 text-yellow-700",
+};
+const ESCROW_BADGE: Record<string, string> = {
+  funded:      "bg-yellow-100 text-yellow-700",
+  accepted:    "bg-blue-100 text-blue-700",
+  in_progress: "bg-purple-100 text-purple-700",
+  completed:   "bg-green-100 text-green-700",
+  released:    "bg-gray-100 text-gray-500",
+  disputed:    "bg-red-100 text-red-700",
+  refunded:    "bg-gray-100 text-gray-400",
+  not_funded:  "bg-gray-50 text-gray-400",
+};
 
 export default function AdminPage() {
   const [db, setDb] = useState<FixMateDB | null>(null);
@@ -24,11 +40,8 @@ export default function AdminPage() {
 
   const runEscrow = (bookingId: string, action: "admin_release" | "admin_refund", note: string) => {
     setActionErrors((prev) => ({ ...prev, [bookingId]: "" }));
-    try {
-      setDb(escrowAction(bookingId, action, note));
-    } catch (err) {
-      setActionErrors((prev) => ({ ...prev, [bookingId]: err instanceof Error ? err.message : "Action failed." }));
-    }
+    try { setDb(escrowAction(bookingId, action, note)); }
+    catch (err) { setActionErrors((prev) => ({ ...prev, [bookingId]: err instanceof Error ? err.message : "Action failed." })); }
   };
 
   const getDisputeSummary = async (disputeId: string) => {
@@ -36,10 +49,8 @@ export default function AdminPage() {
     const dispute = db.disputes.find((d) => d.id === disputeId);
     if (!dispute) return;
     const booking = db.bookings.find((b) => b.id === dispute.bookingId);
-    const diagnosis = db.diagnoses.find((d) => {
-      const job = db.job_requests.find((j) => j.id === dispute.jobId);
-      return d.id === job?.diagnosisId;
-    });
+    const job = db.job_requests.find((j) => j.id === dispute.jobId);
+    const diagnosis = db.diagnoses.find((d) => d.id === job?.diagnosisId);
     setLoadingSummary(disputeId);
     try {
       const summary = await generateDisputeSummary({
@@ -50,255 +61,262 @@ export default function AdminPage() {
         quoteAmount: booking?.quoteAmount ?? 0,
       });
       setDisputeSummaries((prev) => ({ ...prev, [disputeId]: summary }));
-    } finally {
-      setLoadingSummary(null);
-    }
+    } finally { setLoadingSummary(null); }
   };
 
   if (!db) return null;
 
-  const totalEscrow = db.bookings.filter((b) => !["released", "refunded"].includes(b.escrowStatus))
-    .reduce((sum, b) => sum + b.quoteAmount, 0);
+  const totalEscrow = db.bookings
+    .filter((b) => !["released", "refunded"].includes(b.escrowStatus))
+    .reduce((s, b) => s + b.quoteAmount, 0);
   const openDisputes = db.disputes.filter((d) => d.status === "open").length;
+  const pendingApps = db.artisans.filter((a) => a.applicationStatus === "pending").length;
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans pb-12">
-      <header className="bg-white px-4 sm:px-6 py-4 flex items-center justify-between border-b shadow-sm mb-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-400">FixMate</p>
-          <h1 className="text-xl font-bold text-gray-900">Admin Console</h1>
+    <div className="min-h-screen bg-white font-sans pb-16">
+      {/* Header */}
+      <div className="border-b border-gray-100 px-4 sm:px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="flex h-7 w-7 items-center justify-center bg-green-700 text-xs font-black text-white shrink-0">F</Link>
+          <h1 className="text-sm font-black text-gray-950">Admin Console</h1>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/opay-simulator" className="text-xs font-bold text-blue-700 underline">OPay Sim</Link>
-          <button onClick={() => { resetDemoDb(); refresh(); }} className="text-xs text-red-500 hover:text-red-700 font-semibold">Reset Demo</button>
-          <Link href="/" className="text-sm text-gray-600 hover:text-gray-900">Home</Link>
+          <Link href="/opay-simulator" className="text-xs font-black text-blue-600 hover:text-blue-800 transition-colors">OPay Sim</Link>
+          <button onClick={() => { resetDemoDb(); refresh(); }} className="text-xs font-black text-gray-400 hover:text-red-600 transition-colors">Reset</button>
+          <Link href="/" className="text-xs font-black text-gray-400 hover:text-gray-950 transition-colors">Home</Link>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-2 space-y-6">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-8">
 
-        {/* Demo banner */}
-        <div className="bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
-          <strong>Demo Mode</strong> — All actions update the local simulated OPay escrow ledger.
-          No real funds move. This panel demonstrates platform admin capabilities for hackathon judges.
-        </div>
-
-        {/* Platform metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Stat label="Total Escrow Locked" value={naira(totalEscrow)} />
-          <Stat label="Platform Fees Earned" value={naira(db.platform_fee_balance)} />
-          <Stat label="Open Disputes" value={String(openDisputes)} warn={openDisputes > 0} />
-          <Stat label="Artisan Applications" value={String(db.artisans.filter((a) => a.applicationStatus === "pending").length)} />
+        {/* Top metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatCard label="Escrow Locked"    value={naira(totalEscrow)} />
+          <StatCard label="Fees Earned"      value={naira(db.platform_fee_balance)} green />
+          <StatCard label="Open Disputes"    value={String(openDisputes)}  warn={openDisputes > 0} />
+          <StatCard label="Pending Artisans" value={String(pendingApps)} warn={pendingApps > 0} />
         </div>
 
-        {/* Trust score info */}
-        <Section title="Trust Score Formula">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {TRUST_SCORE_WEIGHTS.map((w) => (
-              <div key={w.label} className="bg-gray-50 border border-gray-100 p-3">
-                <p className="text-sm font-bold text-gray-800">{w.label}</p>
-                <p className="text-2xl font-black text-green-700 mt-1">{w.weight}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{w.hint}</p>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-gray-400">
-            Trust scores are calculated automatically from jobs, reviews, disputes, and profile completeness.
-            Admin can still approve/reject artisans manually.
-          </p>
-        </Section>
-
-        {/* Artisan applications */}
-        <Section title="Artisan Applications & Trust Scores">
-          {db.artisans.map((artisan) => {
-            const artisanJobs = db.job_requests.filter((j) => j.selectedArtisanId === artisan.id);
-            const artisanReviews = db.reviews.filter((r) => r.artisanId === artisan.id);
-            const artisanDisputes = db.disputes.filter((d) => d.artisanId === artisan.id);
-            const trust = calculateTrustScore(artisan, artisanJobs, artisanReviews, artisanDisputes);
-            const tier = getTrustTier(trust.total);
-            return (
-              <div key={artisan.id} className="p-4 border border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <h2 className="font-bold text-gray-900">{artisan.fullName}</h2>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 ${
-                      artisan.applicationStatus === "approved" ? "bg-green-100 text-green-800" :
-                      artisan.applicationStatus === "rejected" ? "bg-red-100 text-red-800" :
-                                                                  "bg-yellow-100 text-yellow-800"
-                    }`}>{artisan.applicationStatus}</span>
-                    {artisan.isVerified && <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5">✓ Verified</span>}
-                  </div>
-                  <p className="text-sm text-gray-500">{artisan.category} · {artisan.location}</p>
-                  <div className="flex items-center gap-3 mt-2">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-24 bg-gray-200 h-1.5">
-                        <div className="bg-green-600 h-1.5 transition-all" style={{ width: `${trust.total}%` }} />
+        {/* ── DISPUTES (most urgent first) ────────────────────────────── */}
+        <Section title="Disputes" count={db.disputes.length}>
+          {db.disputes.length === 0 && <Empty text="No disputes. Open one from the booking page to test." />}
+          <div className="space-y-3">
+            {db.disputes.map((dispute) => {
+              const booking = db.bookings.find((b) => b.id === dispute.bookingId);
+              const summary = disputeSummaries[dispute.id];
+              const RECO_COLOR: Record<string, string> = { refund: "text-red-700", release: "text-green-700", partial_refund: "text-yellow-700", request_evidence: "text-blue-700" };
+              return (
+                <div key={dispute.id} className={`border p-4 space-y-3 ${dispute.status === "open" ? "border-red-200 bg-red-50/30" : "border-gray-200"}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 ${dispute.status === "open" ? "bg-red-200 text-red-800" : "bg-gray-200 text-gray-600"}`}>
+                          {dispute.status}
+                        </span>
+                        {booking && <span className={`text-[10px] font-black uppercase px-2 py-0.5 ${ESCROW_BADGE[booking.escrowStatus] ?? ""}`}>{booking.escrowStatus}</span>}
+                        {booking && <span className="text-xs font-black text-gray-500">{naira(booking.quoteAmount)}</span>}
                       </div>
-                      <span className={`text-xs font-bold px-1.5 py-0.5 ${tier.color}`}>{trust.total}% · {tier.label}</span>
+                      <p className="text-sm font-semibold text-gray-950">{dispute.reason}</p>
                     </div>
+                    <button
+                      onClick={() => getDisputeSummary(dispute.id)}
+                      disabled={loadingSummary === dispute.id}
+                      className="shrink-0 px-3 py-1.5 bg-gray-950 text-white text-xs font-black hover:bg-gray-800 transition-colors disabled:opacity-40"
+                    >
+                      {loadingSummary === dispute.id ? "Analyzing…" : "AI Summary"}
+                    </button>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">{trust.reasons.join(" · ")}</p>
-                </div>
-                <div className="flex flex-wrap gap-2 shrink-0">
-                  <button onClick={() => setDb(updateArtisan(artisan.id, { applicationStatus: "approved", isVerified: true }))} className="px-3 py-1.5 bg-green-700 text-white text-xs font-bold hover:bg-green-800">Approve</button>
-                  <button onClick={() => setDb(updateArtisan(artisan.id, { applicationStatus: "rejected", isVerified: false }))} className="px-3 py-1.5 bg-red-600 text-white text-xs font-bold hover:bg-red-700">Reject</button>
-                  <button onClick={() => setDb(updateArtisan(artisan.id, { trustScore: Math.min(100, artisan.trustScore + 5) }))} className="px-3 py-1.5 bg-white border text-xs font-bold hover:bg-gray-50">+5 Trust</button>
-                  <button onClick={() => setDb(updateArtisan(artisan.id, { trustScore: Math.max(0, artisan.trustScore - 5) }))} className="px-3 py-1.5 bg-white border text-xs font-bold hover:bg-gray-50">−5 Trust</button>
-                </div>
-              </div>
-            );
-          })}
-        </Section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Active jobs */}
-          <Section title="Active Jobs">
-            {db.job_requests.length === 0 && <Empty text="No jobs yet." />}
-            {db.job_requests.map((job) => {
-              const diagnosis = db.diagnoses.find((d) => d.id === job.diagnosisId);
-              const artisan = db.artisans.find((a) => a.id === job.selectedArtisanId);
-              return (
-                <div key={job.id} className="p-3 border border-gray-100 bg-gray-50">
-                  <h3 className="font-bold text-gray-900 text-sm">{diagnosis?.issue_title ?? job.description}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{job.status.replaceAll("_", " ")} · {artisan?.fullName ?? "No artisan"}</p>
-                </div>
-              );
-            })}
-          </Section>
-
-          {/* Escrow control */}
-          <Section title="Escrow Control">
-            {db.bookings.length === 0 && <Empty text="No bookings yet." />}
-            {db.bookings.map((booking) => {
-              const artisan = db.artisans.find((a) => a.id === booking.artisanId);
-              const job = db.job_requests.find((j) => j.id === booking.jobId);
-              const err = actionErrors[booking.id];
-              const canAct = !["released", "refunded", "not_funded"].includes(booking.escrowStatus);
-              return (
-                <div key={booking.id} className="p-3 border border-gray-100 bg-gray-50">
-                  <div className="flex justify-between gap-3 items-start mb-2">
-                    <div>
-                      <p className="font-mono text-xs font-bold text-gray-900">{booking.opayReference}</p>
-                      <p className="text-xs text-gray-500">{artisan?.fullName} · {booking.escrowStatus}</p>
-                      <p className="text-xs text-gray-400">{job?.status.replaceAll("_", " ")}</p>
-                    </div>
-                    <p className="font-bold text-gray-900 text-sm">{naira(booking.quoteAmount)}</p>
-                  </div>
-                  {err && <p className="text-xs text-red-600 mb-2">{err}</p>}
-                  {canAct && (
-                    <div className="flex gap-2">
-                      <button onClick={() => runEscrow(booking.id, "admin_release", "Admin released escrow.")} className="flex-1 py-1.5 bg-gray-900 text-white text-xs font-bold hover:bg-gray-800">Release</button>
-                      <button onClick={() => runEscrow(booking.id, "admin_refund", "Admin refunded user.")} className="flex-1 py-1.5 bg-white border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50">Refund</button>
+                  {summary && (
+                    <div className="bg-white border border-gray-200 p-3 text-xs space-y-1.5">
+                      <p className="text-gray-500">{summary.reasoning}</p>
+                      <p>
+                        <span className="font-black text-gray-800">Recommendation: </span>
+                        <span className={`font-black uppercase ${RECO_COLOR[summary.recommended_action] ?? "text-gray-700"}`}>
+                          {summary.recommended_action.replaceAll("_", " ")}
+                        </span>
+                      </p>
                     </div>
                   )}
+
+                  {dispute.status === "open" && booking && (
+                    <div className="flex gap-2">
+                      <button onClick={() => runEscrow(booking.id, "admin_release", "Admin released after dispute review.")} className="flex-1 py-2 bg-gray-950 text-white text-xs font-black hover:bg-gray-800 transition-colors">Release to Artisan</button>
+                      <button onClick={() => runEscrow(booking.id, "admin_refund", "Admin refunded user after dispute review.")} className="flex-1 py-2 border border-red-200 text-red-600 text-xs font-black hover:bg-red-50 transition-colors">Refund to User</button>
+                    </div>
+                  )}
+                  {actionErrors[booking?.id ?? ""] && <p className="text-xs text-red-600 font-semibold">{actionErrors[booking?.id ?? ""]}</p>}
                 </div>
               );
             })}
-          </Section>
-        </div>
-
-        {/* Disputes with AI summary */}
-        <Section title="Disputes">
-          {db.disputes.length === 0 && <Empty text="No disputes yet. Open one from the booking page." />}
-          {db.disputes.map((dispute) => {
-            const booking = db.bookings.find((b) => b.id === dispute.bookingId);
-            const summary = disputeSummaries[dispute.id];
-            return (
-              <div key={dispute.id} className={`p-4 border ${dispute.status === "open" ? "border-red-100 bg-red-50" : "border-gray-100 bg-gray-50"}`}>
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
-                  <div>
-                    <p className={`text-xs font-bold px-2 py-0.5 w-fit mb-1 ${dispute.status === "open" ? "bg-red-200 text-red-800" : "bg-gray-200 text-gray-700"}`}>
-                      {dispute.status.replaceAll("_", " ")}
-                    </p>
-                    <p className="font-bold text-gray-900">{dispute.reason}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Escrow: {booking?.escrowStatus ?? "unknown"} · {naira(booking?.quoteAmount ?? 0)}</p>
-                  </div>
-                  <button
-                    onClick={() => getDisputeSummary(dispute.id)}
-                    disabled={loadingSummary === dispute.id}
-                    className="shrink-0 px-3 py-1.5 bg-blue-700 text-white text-xs font-bold hover:bg-blue-800 disabled:opacity-50"
-                  >
-                    {loadingSummary === dispute.id ? "Analyzing..." : "AI Summary"}
-                  </button>
-                </div>
-
-                {summary && (
-                  <div className="bg-white border border-blue-100 p-3 text-xs space-y-1.5 mb-3">
-                    <p><strong>User complaint:</strong> {summary.user_complaint}</p>
-                    <p><strong>Artisan status:</strong> {summary.artisan_status}</p>
-                    <p><strong>Payment state:</strong> {summary.payment_state}</p>
-                    <p><strong>Gemini recommendation:</strong>{" "}
-                      <span className={`font-bold ${summary.recommended_action === "refund" ? "text-red-700" : summary.recommended_action === "release" ? "text-green-700" : "text-blue-700"}`}>
-                        {summary.recommended_action.replaceAll("_", " ").toUpperCase()}
-                      </span>
-                    </p>
-                    <p className="text-gray-600">{summary.reasoning}</p>
-                  </div>
-                )}
-
-                {dispute.status === "open" && booking && (
-                  <div className="flex gap-2">
-                    <button onClick={() => runEscrow(booking.id, "admin_release", "Admin released after dispute review.")} className="flex-1 py-1.5 bg-gray-900 text-white text-xs font-bold">Release to Artisan</button>
-                    <button onClick={() => runEscrow(booking.id, "admin_refund", "Admin refunded user after dispute review.")} className="flex-1 py-1.5 bg-white border border-red-200 text-red-600 text-xs font-bold">Refund to User</button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          </div>
         </Section>
 
-        {/* Full ledger */}
-        <Section title="Escrow Ledger">
-          {db.escrow_transactions.length === 0 && <Empty text="No transactions yet." />}
+        {/* ── ESCROW / PAYMENTS ───────────────────────────────────────── */}
+        <Section title="Escrow & Payments" count={db.bookings.length}>
+          {db.bookings.length === 0 && <Empty text="No bookings yet." />}
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
+            <table className="w-full text-sm text-left border-collapse">
               <thead>
-                <tr className="border-b text-[10px] font-bold uppercase tracking-wide text-gray-500">
-                  <th className="py-2 pr-3">Reference</th>
-                  <th className="pr-3">Action</th>
-                  <th className="pr-3">Amount</th>
-                  <th className="pr-3">Platform Fee</th>
-                  <th className="pr-3">Actor</th>
-                  <th>Note</th>
+                <tr className="border-b border-gray-200">
+                  <Th>Reference</Th>
+                  <Th>Artisan</Th>
+                  <Th>Status</Th>
+                  <Th>Amount</Th>
+                  <Th>Actions</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {db.bookings.map((booking) => {
+                  const artisan = db.artisans.find((a) => a.id === booking.artisanId);
+                  const canAct = !["released", "refunded", "not_funded"].includes(booking.escrowStatus);
+                  const err = actionErrors[booking.id];
+                  return (
+                    <tr key={booking.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 pr-4 font-mono text-xs text-gray-500">{booking.opayReference}</td>
+                      <td className="pr-4 text-xs font-semibold text-gray-950">{artisan?.fullName ?? "—"}</td>
+                      <td className="pr-4">
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 ${ESCROW_BADGE[booking.escrowStatus] ?? ""}`}>
+                          {booking.escrowStatus.replaceAll("_", " ")}
+                        </span>
+                        {err && <p className="text-[10px] text-red-600 mt-0.5">{err}</p>}
+                      </td>
+                      <td className="pr-4 font-black text-gray-950 text-xs">{naira(booking.quoteAmount)}</td>
+                      <td>
+                        {canAct && (
+                          <div className="flex gap-1.5">
+                            <button onClick={() => runEscrow(booking.id, "admin_release", "Admin released.")} className="px-2.5 py-1 bg-gray-950 text-white text-[10px] font-black hover:bg-gray-800 transition-colors">Release</button>
+                            <button onClick={() => runEscrow(booking.id, "admin_refund", "Admin refunded.")} className="px-2.5 py-1 border border-red-200 text-red-600 text-[10px] font-black hover:bg-red-50 transition-colors">Refund</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
+        {/* ── ARTISAN APPROVALS ───────────────────────────────────────── */}
+        <Section title="Artisans" count={db.artisans.length}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <Th>Name</Th>
+                  <Th>Category</Th>
+                  <Th>Trust</Th>
+                  <Th>Status</Th>
+                  <Th>Actions</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {db.artisans.map((artisan) => {
+                  const artisanJobs = db.job_requests.filter((j) => j.selectedArtisanId === artisan.id);
+                  const artisanReviews = db.reviews.filter((r) => r.artisanId === artisan.id);
+                  const artisanDisputes = db.disputes.filter((d) => d.artisanId === artisan.id);
+                  const trust = calculateTrustScore(artisan, artisanJobs, artisanReviews, artisanDisputes);
+                  const tier = getTrustTier(trust.total);
+                  return (
+                    <tr key={artisan.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 pr-4">
+                        <p className="font-black text-gray-950 text-sm">{artisan.fullName}</p>
+                        <p className="text-xs text-gray-400">{artisan.location}</p>
+                      </td>
+                      <td className="pr-4 text-xs text-gray-600">{artisan.category}</td>
+                      <td className="pr-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-gray-200 h-1">
+                            <div className="bg-green-600 h-1" style={{ width: `${trust.total}%` }} />
+                          </div>
+                          <span className={`text-[10px] font-black px-1.5 py-0.5 ${tier.color}`}>{trust.total}%</span>
+                        </div>
+                      </td>
+                      <td className="pr-4">
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 ${STATUS_BADGE[artisan.applicationStatus] ?? ""}`}>
+                          {artisan.applicationStatus}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex gap-1.5 flex-wrap">
+                          <button onClick={() => setDb(updateArtisan(artisan.id, { applicationStatus: "approved", isVerified: true }))} className="px-2.5 py-1 bg-green-700 text-white text-[10px] font-black hover:bg-green-800 transition-colors">Approve</button>
+                          <button onClick={() => setDb(updateArtisan(artisan.id, { applicationStatus: "rejected", isVerified: false }))} className="px-2.5 py-1 bg-red-600 text-white text-[10px] font-black hover:bg-red-700 transition-colors">Reject</button>
+                          <button onClick={() => setDb(updateArtisan(artisan.id, { trustScore: Math.min(100, artisan.trustScore + 5) }))} className="px-2 py-1 border border-gray-200 text-[10px] font-black hover:bg-gray-50 transition-colors">+5</button>
+                          <button onClick={() => setDb(updateArtisan(artisan.id, { trustScore: Math.max(0, artisan.trustScore - 5) }))} className="px-2 py-1 border border-gray-200 text-[10px] font-black hover:bg-gray-50 transition-colors">−5</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
+        {/* ── LEDGER (collapsed) ──────────────────────────────────────── */}
+        <details className="border border-gray-100">
+          <summary className="px-4 py-3 text-xs font-black uppercase tracking-widest text-gray-400 cursor-pointer hover:bg-gray-50 select-none">
+            Escrow Ledger ({db.escrow_transactions.length} transactions) ▸
+          </summary>
+          <div className="overflow-x-auto px-4 pb-4">
+            <table className="w-full text-xs text-left border-collapse mt-2">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <Th>Reference</Th>
+                  <Th>Action</Th>
+                  <Th>Amount</Th>
+                  <Th>Fee</Th>
+                  <Th>Actor</Th>
                 </tr>
               </thead>
               <tbody>
                 {db.escrow_transactions.map((tx) => (
                   <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-1.5 pr-3 font-mono">{tx.reference}</td>
-                    <td className="pr-3">{tx.action.replaceAll("_", " ")}</td>
-                    <td className="pr-3 font-semibold">{naira(tx.amount)}</td>
-                    <td className="pr-3">{naira(tx.platformFee)}</td>
-                    <td className="pr-3 capitalize">{tx.actor}</td>
-                    <td className="text-gray-400 max-w-[160px] truncate">{tx.note}</td>
+                    <td className="py-1.5 pr-3 font-mono text-gray-400">{tx.reference}</td>
+                    <td className="pr-3 text-gray-700">{tx.action.replaceAll("_", " ")}</td>
+                    <td className="pr-3 font-semibold text-gray-950">{naira(tx.amount)}</td>
+                    <td className="pr-3 text-gray-500">{naira(tx.platformFee)}</td>
+                    <td className="capitalize text-gray-500">{tx.actor}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </Section>
+        </details>
 
       </main>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
   return (
-    <section className="bg-white border border-gray-200 p-5 sm:p-6 space-y-3">
-      <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+    <section className="space-y-4">
+      <div className="flex items-center gap-2">
+        <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">{title}</h2>
+        {count !== undefined && count > 0 && (
+          <span className="bg-gray-950 text-white text-[10px] font-black px-1.5 py-0.5">{count}</span>
+        )}
+      </div>
       {children}
     </section>
   );
 }
-function Stat({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
+
+function StatCard({ label, value, green = false, warn = false }: { label: string; value: string; green?: boolean; warn?: boolean }) {
   return (
-    <div className={`bg-white border p-4 ${warn && value !== "0" ? "border-red-200 bg-red-50" : "border-gray-200"}`}>
-      <p className="text-xs text-gray-500 font-medium">{label}</p>
-      <p className={`text-2xl font-bold mt-1 ${warn && value !== "0" ? "text-red-700" : "text-gray-900"}`}>{value}</p>
+    <div className={`border p-4 ${warn && value !== "0" ? "border-red-200 bg-red-50/30" : "border-gray-200"}`}>
+      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">{label}</p>
+      <p className={`text-2xl font-black ${green ? "text-green-700" : warn && value !== "0" ? "text-red-700" : "text-gray-950"}`}>{value}</p>
     </div>
   );
 }
+
+function Th({ children }: { children: React.ReactNode }) {
+  return <th className="pb-2 pr-4 text-[10px] font-black uppercase tracking-widest text-gray-400 whitespace-nowrap">{children}</th>;
+}
+
 function Empty({ text }: { text: string }) {
-  return <div className="p-6 text-center text-sm text-gray-500 bg-gray-50 border border-gray-100">{text}</div>;
+  return <div className="py-6 text-center text-sm text-gray-400 border border-gray-100">{text}</div>;
 }
