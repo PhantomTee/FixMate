@@ -1,23 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { getDemoRole, ROLE_META } from "@/lib/demo-auth";
-import { DemoRole } from "@/lib/types";
+import { usePathname } from "next/navigation";
+
+const NAV_LINKS = [
+  { label: "Browse Artisans", href: "/browse" },
+  { label: "Post a Job",      href: "/report" },
+  { label: "How it Works",   href: "/#how-it-works" },
+];
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const [role, setRole] = useState<DemoRole>("user");
-
-  useEffect(() => {
-    setRole(getDemoRole());
-    const handler = (e: Event) => setRole((e as CustomEvent<DemoRole>).detail);
-    window.addEventListener("fixmate-role-changed", handler);
-    return () => window.removeEventListener("fixmate-role-changed", handler);
-  }, []);
-
+  const pathname = usePathname();
   const close = () => setIsOpen(false);
-  const meta = ROLE_META[role];
 
   return (
     <>
@@ -31,36 +27,34 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden items-center gap-6 text-[13px] font-semibold text-gray-500 md:flex">
-            <Link href="/report"            className="hover:text-gray-950 transition-colors">Report</Link>
-            <Link href="/dashboard"         className="hover:text-gray-950 transition-colors">Customer</Link>
-            <Link href="/artisan/dashboard" className="hover:text-gray-950 transition-colors">Artisan Hub</Link>
-            <Link href="/admin"             className="hover:text-gray-950 transition-colors">Admin</Link>
-            <span className="text-gray-200 select-none">|</span>
-            <Link href="/opay-simulator"    className="text-blue-600 hover:text-blue-700 transition-colors">OPay Sim</Link>
-            <Link href="/ussd-demo"         className="text-purple-600 hover:text-purple-700 transition-colors">USSD</Link>
-            <Link href="/whatsapp-demo"     className="text-green-600 hover:text-green-700 transition-colors">WhatsApp</Link>
+          <nav className="hidden items-center gap-7 text-[13px] font-semibold text-gray-500 md:flex">
+            {NAV_LINKS.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className={`hover:text-gray-950 transition-colors ${pathname === l.href ? "text-gray-950" : ""}`}
+              >
+                {l.label}
+              </Link>
+            ))}
           </nav>
 
           {/* Desktop right */}
           <div className="hidden items-center gap-2.5 md:flex">
-            <Link
-              href={meta.path}
-              className={`px-3 py-1.5 text-[11px] font-black uppercase tracking-wider border transition-colors ${meta.color}`}
-            >
-              {meta.label} ↗
+            <Link href="/dashboard" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
+              Sign In
             </Link>
-            <Link
-              href="/report"
-              className="bg-green-700 px-5 py-2 text-[13px] font-black text-white hover:bg-green-800 transition-colors tracking-wide"
-            >
-              Get Started
+            <Link href="/artisan/register" className="bg-green-700 px-5 py-2 text-sm font-black text-white hover:bg-green-800 transition-colors">
+              Offer Your Skills
+            </Link>
+            <Link href="/report" className="bg-gray-950 px-5 py-2 text-sm font-black text-white hover:bg-gray-800 transition-colors">
+              Hire an Artisan
             </Link>
           </div>
 
-          {/* Mobile hamburger */}
+          {/* Mobile menu button */}
           <button
-            className="border border-gray-200 px-3 py-2 text-xs font-black uppercase tracking-wider text-gray-900 md:hidden hover:border-gray-950 transition-colors"
+            className="border border-gray-200 px-3 py-2 text-xs font-black uppercase tracking-wider text-gray-900 md:hidden"
             onClick={() => setIsOpen((o) => !o)}
           >
             {isOpen ? "Close" : "Menu"}
@@ -72,34 +66,18 @@ export default function Navbar() {
       {isOpen && (
         <div className="fixed inset-0 z-40 bg-white pt-16 md:hidden overflow-y-auto">
           <nav className="flex flex-col text-sm font-semibold text-gray-800">
-            {([
-              ["Home",              "/"],
-              ["Report Issue",      "/report"],
-              ["Customer",          "/dashboard"],
-              ["Become an Artisan", "/artisan/register"],
-              ["Artisan Hub",       "/artisan/dashboard"],
-              ["Admin Console",     "/admin"],
-            ] as [string, string][]).map(([label, href]) => (
-              <Link key={href} href={href} onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50 transition-colors">
-                {label}
+            <Link href="/"            onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Home</Link>
+            <Link href="/browse"      onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Browse Artisans</Link>
+            <Link href="/report"      onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Post a Job</Link>
+            <Link href="/dashboard"   onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">My Dashboard</Link>
+            <Link href="/artisan/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Artisan Hub</Link>
+            <Link href="/artisan/register"  onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Become an Artisan</Link>
+            <div className="px-6 py-5 space-y-3">
+              <Link href="/report" onClick={close} className="block w-full bg-green-700 text-white text-center py-3.5 text-sm font-black hover:bg-green-800">
+                Hire an Artisan →
               </Link>
-            ))}
-
-            <p className="px-6 pt-5 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Judge Demo Tools</p>
-
-            {([
-              ["OPay Simulator", "/opay-simulator", "text-blue-700"],
-              ["USSD Demo",      "/ussd-demo",      "text-purple-700"],
-              ["WhatsApp Bot",   "/whatsapp-demo",  "text-green-700"],
-            ] as [string, string, string][]).map(([label, href, color]) => (
-              <Link key={href} href={href} onClick={close} className={`border-b border-gray-100 px-6 py-4 hover:bg-gray-50 transition-colors ${color}`}>
-                {label}
-              </Link>
-            ))}
-
-            <div className="px-6 py-5">
-              <Link href="/report" onClick={close} className="block w-full bg-green-700 text-white text-center py-3.5 text-sm font-black tracking-wide hover:bg-green-800">
-                Get Started →
+              <Link href="/artisan/register" onClick={close} className="block w-full border border-gray-950 text-gray-950 text-center py-3.5 text-sm font-black hover:bg-gray-50">
+                Offer Your Skills
               </Link>
             </div>
           </nav>

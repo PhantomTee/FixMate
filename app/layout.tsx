@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
-import DemoModeBanner from "@/components/DemoModeBanner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -11,16 +10,15 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "FixMate — AI-Powered Repair & Escrow Platform",
+  title: "FixMate — Nigeria's Home Repair Marketplace",
   description:
-    "FixMate uses Google Gemini AI to diagnose household faults and OPay Escrow to secure payments for Nigeria's informal artisan economy.",
+    "Find verified, trusted artisans for any home repair in Nigeria. Secure escrow payments, AI-powered job matching, and real reviews.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
       <body className="font-sans antialiased bg-white" suppressHydrationWarning>
-        <DemoModeBanner />
         <Navbar />
         {children}
       </body>
