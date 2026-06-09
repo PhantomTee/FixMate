@@ -75,17 +75,29 @@ export async function POST(req: NextRequest) {
     const service  = createServiceClient();
     const phone    = data.msisdn ?? body.phone;
 
-    // Upsert the user in auth.users using admin API
+    // Deterministic fake email so we can issue magic-link tokens (phone-only users have no email)
+    const deterministicEmail = `p${phone.replace(/\D/g, "")}@handijob.ng`;
+
+    // Find existing user or create one
     const { data: existingUsers } = await service.auth.admin.listUsers();
     const existing = existingUsers?.users?.find((u) => u.phone === phone);
 
     let userId: string;
     if (existing) {
       userId = existing.id;
+      // Backfill email if the user was created without one
+      if (!existing.email) {
+        await service.auth.admin.updateUserById(userId, {
+          email: deterministicEmail,
+          email_confirm: true,
+        });
+      }
     } else {
       const { data: created, error } = await service.auth.admin.createUser({
         phone,
         phone_confirm: true,
+        email:         deterministicEmail,
+        email_confirm: true,
       });
       if (error || !created.user) {
         return NextResponse.json({ error: error?.message ?? "Failed to create user" }, { status: 500 });
@@ -93,18 +105,14 @@ export async function POST(req: NextRequest) {
       userId = created.user.id;
     }
 
-    // Generate a short-lived sign-in link and return the session token
-    const { data: linkData, error: linkError } = await service.auth.admin.generateLink({
+    // Generate a magic-link token so the client can establish a session without a second OTP
+    const { data: linkData } = await service.auth.admin.generateLink({
       type:  "magiclink",
-      email: `${userId}@handijob.internal`,
+      email: deterministicEmail,
     });
 
-    // Fallback: just return the userId so the client can call signInWithOtp
-    if (linkError || !linkData) {
-      return NextResponse.json({ verified: true, userId, phone });
-    }
-
-    return NextResponse.json({ verified: true, userId, phone });
+    const tokenHash = linkData?.properties?.hashed_token;
+    return NextResponse.json({ verified: true, userId, phone, token_hash: tokenHash, email: deterministicEmail });
   }
 
   return NextResponse.json({ error: "Invalid action" }, { status: 400 });

@@ -48,16 +48,29 @@ export default function AuthPage() {
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ action: "verify", phone: phone.trim(), pin_id: pinId, otp: otp.trim() }),
       });
-      const data = await res.json() as { verified?: boolean; phone?: string; error?: string };
+      const data = await res.json() as { verified?: boolean; phone?: string; token_hash?: string; email?: string; error?: string };
       if (!res.ok || !data.verified) throw new Error(data.error ?? "Invalid OTP");
 
-      // Sign in via Supabase using phone OTP (Termii already confirmed identity)
+      // Use magic-link token to establish Supabase session without triggering another OTP
       const supabase = createClient();
-      const { error: signInErr } = await supabase.auth.signInWithOtp({ phone: data.phone ?? phone.trim() });
-      // If signIn triggers a second OTP we skip it — just navigate; session will be set server-side
-      if (signInErr && !signInErr.message.includes("rate")) throw signInErr;
+      if (data.token_hash && data.email) {
+        const { error: verifyErr } = await supabase.auth.verifyOtp({
+          email:      data.email,
+          token_hash: data.token_hash,
+          type:       "email",
+        });
+        if (verifyErr) console.warn("Session verify:", verifyErr.message);
+      }
 
-      router.push(next);
+      // Check if user has completed their profile
+      const meRes  = await fetch("/api/auth/me");
+      const meData = await meRes.json() as { user?: { name?: string } | null };
+
+      if (!meData.user?.name) {
+        router.push(`/onboarding?next=${encodeURIComponent(next)}`);
+      } else {
+        router.push(next);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid OTP. Try again.");
     } finally {
