@@ -132,6 +132,7 @@ function toMessage(r: Record<string, unknown>): Message {
     jobId:      r.job_id as string,
     senderType: r.sender_type as Message["senderType"],
     text:       r.text as string,
+    imageUrl:   r.image_url as string | undefined,
     timestamp:  r.timestamp as string,
   };
 }
@@ -366,11 +367,12 @@ export async function getMessages(jobId: string): Promise<Message[]> {
 export async function sendMessage(
   jobId: string,
   text: string,
-  senderType: Message["senderType"]
+  senderType: Message["senderType"],
+  imageUrl?: string
 ): Promise<Message> {
   const { data, error } = await db()
     .from("messages")
-    .insert({ job_id: jobId, text, sender_type: senderType })
+    .insert({ job_id: jobId, text, sender_type: senderType, image_url: imageUrl ?? null })
     .select()
     .single();
   if (error) throw error;

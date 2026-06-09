@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   // Validate that this user is a party to the booking
   const { data: booking } = await serviceClient
     .from("bookings")
-    .select("user_id, artisan_id, quote_amount")
+    .select("user_id, artisan_id, quote_amount, job_id")
     .eq("id", bookingId)
     .single();
 
@@ -71,8 +71,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  // Fire-and-forget notifications
+  // Fire-and-forget notifications + system chat message
   void notifyParties(action, booking as { user_id: string; artisan_id: string; quote_amount: number }, serviceClient);
+  void insertSystemMessage(action, booking as { job_id: string; quote_amount: number }, serviceClient);
 
   return NextResponse.json(data);
 }
@@ -125,4 +126,27 @@ async function notifyParties(
 
   const targets = messages[action] ?? [];
   await Promise.all(targets.map(({ to, text }) => to ? sendNotification(to, text) : Promise.resolve()));
+}
+
+const SYSTEM_MSG: Partial<Record<string, string>> = {
+  artisan_accept:   "✅ Artisan accepted the job and is on the way",
+  mark_in_progress: "🔧 Job started — funds secured in escrow until completion",
+  mark_completed:   "✅ Artisan marked the job complete — please inspect and release payment",
+  user_release:     "💰 Payment released — job complete! Thank you for using iSabi",
+  open_dispute:     "⚠️ Dispute opened — our admin team will review within 24 hours",
+  artisan_decline:  "❌ Artisan could not take this job — we're finding you another",
+};
+
+async function insertSystemMessage(
+  action:  string,
+  booking: { job_id: string; quote_amount: number },
+  service: SupabaseServiceClient
+) {
+  const text = SYSTEM_MSG[action];
+  if (!text || !booking.job_id) return;
+  await service.from("messages").insert({
+    job_id:      booking.job_id,
+    sender_type: "admin",
+    text,
+  });
 }

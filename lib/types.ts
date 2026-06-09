@@ -222,6 +222,7 @@ export type Message = {
   jobId: string;
   senderType: SenderType;
   text: string;
+  imageUrl?: string;
   timestamp: string;
 };
 

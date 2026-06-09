@@ -89,5 +89,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Insert escrow-funded system message in the job chat
+  const { data: jobRow } = await service
+    .from("bookings")
+    .select("job_id, total_charge")
+    .eq("id", bookingId)
+    .single();
+  if (jobRow?.job_id) {
+    const amount = `₦${(jobRow.total_charge ?? 0).toLocaleString()}`;
+    await service.from("messages").insert({
+      job_id:      jobRow.job_id,
+      sender_type: "admin",
+      text:        `💰 Escrow funded — ${amount} secured. Your artisan has been notified and will accept shortly`,
+    });
+  }
+
   return NextResponse.json({ received: true });
 }
