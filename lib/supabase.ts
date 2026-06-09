@@ -1,6 +1,5 @@
 import { createBrowserClient, createServerClient } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 
 const url  = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -12,6 +11,7 @@ export function createClient() {
 
 /** Server components & API routes – respects the user's session cookie */
 export async function createServerSideClient() {
+  const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
   return createServerClient(url, anon, {
     cookies: {
