@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase";
 
 const NAV_LINKS = [
   { label: "Browse Artisans", href: "/browse" },
@@ -10,10 +11,52 @@ const NAV_LINKS = [
   { label: "How it Works",   href: "/#how-it-works" },
 ];
 
+type AuthUser = { name: string; isArtisan: boolean } | null;
+
 export default function Navbar() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen]     = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser>(null);
+  const [authReady, setAuthReady] = useState(false);
   const pathname = usePathname();
-  const close = () => setIsOpen(false);
+  const router   = useRouter();
+  const close    = () => setIsOpen(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    async function loadUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setAuthReady(true); return; }
+      try {
+        const res  = await fetch("/api/auth/me");
+        const data = await res.json() as { user?: { name?: string } | null; artisan?: unknown };
+        setAuthUser({
+          name:      data.user?.name ?? "You",
+          isArtisan: !!data.artisan,
+        });
+      } catch { /* silently skip */ }
+      setAuthReady(true);
+    }
+
+    loadUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") { setAuthUser(null); setAuthReady(true); }
+      else if (event === "SIGNED_IN") loadUser();
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setAuthUser(null);
+    close();
+    router.push("/");
+  };
+
+  const firstName = authUser?.name?.split(" ")[0] ?? "";
 
   return (
     <>
@@ -41,18 +84,45 @@ export default function Navbar() {
 
           {/* Desktop right */}
           <div className="hidden items-center gap-2.5 md:flex">
-            <Link href="/auth" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
-              Sign In
-            </Link>
-            <Link href="/artisan/register" className="bg-green-700 px-5 py-2 text-sm font-black text-white hover:bg-green-800 transition-colors rounded-lg">
-              Offer Your Skills
-            </Link>
-            <Link href="/report" className="bg-gray-950 px-5 py-2 text-sm font-black text-white hover:bg-gray-800 transition-colors rounded-lg">
-              Hire an Artisan
-            </Link>
+            {authReady && (
+              authUser ? (
+                <>
+                  {/* Greeting chip */}
+                  <span className="text-sm font-black text-gray-600">
+                    Hi, {firstName}
+                  </span>
+                  {authUser.isArtisan && (
+                    <Link href="/artisan/dashboard" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
+                      Artisan Hub
+                    </Link>
+                  )}
+                  <Link href="/dashboard" className="bg-green-700 px-5 py-2 text-sm font-black text-white hover:bg-green-800 transition-colors rounded-lg">
+                    My Dashboard
+                  </Link>
+                  <button
+                    onClick={signOut}
+                    className="bg-gray-100 px-5 py-2 text-sm font-black text-gray-700 hover:bg-gray-200 transition-colors rounded-lg"
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link href="/auth" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
+                    Sign In
+                  </Link>
+                  <Link href="/artisan/register" className="bg-green-700 px-5 py-2 text-sm font-black text-white hover:bg-green-800 transition-colors rounded-lg">
+                    Offer Your Skills
+                  </Link>
+                  <Link href="/report" className="bg-gray-950 px-5 py-2 text-sm font-black text-white hover:bg-gray-800 transition-colors rounded-lg">
+                    Hire an Artisan
+                  </Link>
+                </>
+              )
+            )}
           </div>
 
-          {/* Mobile menu button — hamburger */}
+          {/* Mobile menu button */}
           <button
             className="p-2 text-gray-900 hover:bg-gray-50 rounded-lg md:hidden transition-colors"
             onClick={() => setIsOpen((o) => !o)}
@@ -75,19 +145,44 @@ export default function Navbar() {
       {isOpen && (
         <div className="fixed inset-0 z-40 bg-white pt-16 md:hidden overflow-y-auto">
           <nav className="flex flex-col text-sm font-semibold text-gray-800">
-            <Link href="/"            onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Home</Link>
-            <Link href="/browse"      onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Browse Artisans</Link>
-            <Link href="/report"      onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Post a Job</Link>
-            <Link href="/auth?next=/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Sign In / Dashboard</Link>
-            <Link href="/artisan/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Artisan Hub</Link>
-            <Link href="/artisan/register"  onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Become an Artisan</Link>
+            <Link href="/"       onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Home</Link>
+            <Link href="/browse" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Browse Artisans</Link>
+            <Link href="/report" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Post a Job</Link>
+
+            {authUser ? (
+              <>
+                <Link href="/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50 font-black text-green-700">
+                  My Dashboard — {firstName}
+                </Link>
+                {authUser.isArtisan && (
+                  <Link href="/artisan/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">
+                    Artisan Hub
+                  </Link>
+                )}
+                <button
+                  onClick={signOut}
+                  className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50 text-left text-red-600"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/auth?next=/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Sign In</Link>
+                <Link href="/artisan/dashboard"    onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Artisan Hub</Link>
+                <Link href="/artisan/register"     onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Become an Artisan</Link>
+              </>
+            )}
+
             <div className="px-6 py-5 space-y-3">
               <Link href="/report" onClick={close} className="block w-full bg-green-700 text-white text-center py-3.5 text-sm font-black hover:bg-green-800 rounded-xl">
                 Hire an Artisan →
               </Link>
-              <Link href="/artisan/register" onClick={close} className="block w-full border border-gray-950 text-gray-950 text-center py-3.5 text-sm font-black hover:bg-gray-50 rounded-xl">
-                Offer Your Skills
-              </Link>
+              {!authUser && (
+                <Link href="/artisan/register" onClick={close} className="block w-full border border-gray-950 text-gray-950 text-center py-3.5 text-sm font-black hover:bg-gray-50 rounded-xl">
+                  Offer Your Skills
+                </Link>
+              )}
             </div>
           </nav>
         </div>

@@ -173,7 +173,7 @@ export default function HomePage() {
               }}
             >
               <h1 className="text-[clamp(3rem,8.5vw,5.8rem)] font-black leading-[0.93] tracking-[-0.03em] text-white mb-5">
-                {hero.top}<br />
+                {hero.top}{" "}
                 <span className="text-green-400">{hero.accent}</span>
               </h1>
               <p className="text-lg sm:text-xl text-white/65 max-w-lg mb-10 leading-relaxed font-medium">
