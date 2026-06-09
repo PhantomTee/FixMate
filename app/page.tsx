@@ -3,7 +3,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { loadDb } from "@/lib/demo-db";
 import { Artisan } from "@/lib/types";
 
 // ── HERO ───────────────────────────────────────────────────────────────
@@ -133,10 +132,10 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    try {
-      const db = loadDb();
-      setFeaturedArtisans(db.artisans.filter((a) => a.applicationStatus === "approved" && a.isVerified).slice(0, 4));
-    } catch { /* SSR */ }
+    fetch("/api/artisans?verified=true")
+      .then((r) => r.json())
+      .then((data) => setFeaturedArtisans(Array.isArray(data) ? data.slice(0, 4) : []))
+      .catch(() => {});
   }, []);
 
   const hero = HERO_CONTENT[contentIdx];

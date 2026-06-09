@@ -1,0 +1,38 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createServerSideClient, createServiceClient } from "@/lib/supabase";
+
+async function isAdminUser() {
+  const userClient = await createServerSideClient();
+  const { data: { user } } = await userClient.auth.getUser();
+  if (!user) return false;
+  const adminPhones = (process.env.ADMIN_PHONE_WHITELIST ?? "").split(",").map((p) => p.trim()).filter(Boolean);
+  return user.user_metadata?.role === "admin" || adminPhones.includes(user.phone ?? "");
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!(await isAdminUser())) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const body = await req.json() as Record<string, unknown>;
+  const service = createServiceClient();
+
+  const updates: Record<string, unknown> = {};
+  if ("applicationStatus" in body) updates.application_status = body.applicationStatus;
+  if ("isVerified"         in body) updates.is_verified        = body.isVerified;
+  if ("trustScore"         in body) updates.trust_score        = body.trustScore;
+
+  const { data, error } = await service
+    .from("artisans")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}

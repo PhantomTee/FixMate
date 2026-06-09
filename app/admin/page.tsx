@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { escrowAction, loadDb, updateArtisan } from "@/lib/demo-db";
 import { generateDisputeSummary } from "@/app/actions";
-import { DisputeSummary, HandijobDB } from "@/lib/types";
+import { Artisan, Booking, DiagnosisRecord, DisputeSummary, EscrowTransaction, JobRequest } from "@/lib/types";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
 
@@ -24,32 +23,193 @@ const ESCROW_BADGE: Record<string, string> = {
   not_funded:  "bg-gray-50 text-gray-400",
 };
 
+interface Dispute {
+  id: string;
+  bookingId: string;
+  jobId: string;
+  userId: string;
+  artisanId: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+}
+
+interface AdminData {
+  artisans: Artisan[];
+  bookings: Booking[];
+  disputes: Dispute[];
+  txns: EscrowTransaction[];
+  jobs: JobRequest[];
+  diagnoses: DiagnosisRecord[];
+  platformFeeBalance: number;
+}
+
+function toArtisan(r: Record<string, unknown>): Artisan {
+  return {
+    id: r.id as string,
+    fullName: r.full_name as string,
+    phone: r.phone as string,
+    category: r.category as Artisan["category"],
+    location: r.location as string,
+    yearsExperience: r.years_experience as number,
+    verificationId: (r.verification_id ?? "") as string,
+    skills: (r.skills ?? []) as string[],
+    serviceRadiusKm: r.service_radius_km as number,
+    opayPhone: (r.opay_phone ?? "") as string,
+    trustScore: r.trust_score as number,
+    completedJobs: r.completed_jobs as number,
+    isVerified: r.is_verified as boolean,
+    applicationStatus: r.application_status as Artisan["applicationStatus"],
+    artisan_pending_balance: r.artisan_pending_balance as number,
+    artisan_available_balance: r.artisan_available_balance as number,
+    avatar: (r.avatar ?? "") as string,
+    emergencyAvailable: (r.emergency_available ?? false) as boolean,
+    serviceAreas: (r.service_areas ?? []) as string[],
+    rating: r.rating as number | undefined,
+    createdAt: r.created_at as string,
+  };
+}
+
+function toBooking(r: Record<string, unknown>): Booking {
+  return {
+    id: r.id as string,
+    jobId: r.job_id as string,
+    userId: r.user_id as string,
+    artisanId: r.artisan_id as string,
+    quoteAmount: r.quote_amount as number,
+    userFee: r.user_fee as number,
+    artisanFee: r.artisan_fee as number,
+    totalCharge: r.total_charge as number,
+    escrowStatus: r.escrow_status as Booking["escrowStatus"],
+    opayReference: (r.paystack_reference ?? r.opay_reference ?? "") as string,
+    createdAt: r.created_at as string,
+    updatedAt: r.updated_at as string,
+  };
+}
+
 export default function AdminPage() {
-  const [db, setDb] = useState<HandijobDB | null>(null);
+  const [adminData, setAdminData] = useState<AdminData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [disputeSummaries, setDisputeSummaries] = useState<Record<string, DisputeSummary>>({});
   const [loadingSummary, setLoadingSummary] = useState<string | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
 
-  const refresh = () => setDb(loadDb());
-  useEffect(() => {
-    refresh();
-    window.addEventListener("handijob-db-updated", refresh);
-    return () => window.removeEventListener("handijob-db-updated", refresh);
+  const load = useCallback(async () => {
+    const res = await fetch("/api/admin");
+    if (!res.ok) {
+      const j = await res.json() as { error?: string };
+      setError(j.error ?? "Failed to load admin data");
+      setLoading(false);
+      return;
+    }
+    const raw = await res.json() as {
+      artisans: Record<string, unknown>[];
+      bookings: Record<string, unknown>[];
+      disputes: Record<string, unknown>[];
+      txns: Record<string, unknown>[];
+      jobs: Record<string, unknown>[];
+      diagnoses: Record<string, unknown>[];
+      config: Record<string, unknown> | null;
+    };
+
+    setAdminData({
+      artisans: (raw.artisans ?? []).map(toArtisan),
+      bookings: (raw.bookings ?? []).map(toBooking),
+      disputes: (raw.disputes ?? []).map((d) => ({
+        id: d.id as string,
+        bookingId: d.booking_id as string,
+        jobId: d.job_id as string,
+        userId: d.user_id as string,
+        artisanId: d.artisan_id as string,
+        reason: d.reason as string,
+        status: d.status as string,
+        createdAt: d.created_at as string,
+      })),
+      txns: (raw.txns ?? []).map((r) => ({
+        id: r.id as string,
+        reference: r.reference as string,
+        bookingId: r.booking_id as string,
+        jobId: r.job_id as string,
+        action: r.action as string,
+        amount: r.amount as number,
+        userFee: r.user_fee as number,
+        artisanFee: r.artisan_fee as number,
+        platformFee: r.platform_fee as number,
+        actor: r.actor as string,
+        note: r.note as string,
+        createdAt: r.created_at as string,
+      })) as EscrowTransaction[],
+      jobs: (raw.jobs ?? []).map((r) => ({
+        id: r.id as string,
+        userId: r.user_id as string,
+        description: r.description as string,
+        imageProvided: r.image_provided as boolean,
+        location: r.location as string,
+        diagnosisId: (r.diagnosis_id ?? "") as string,
+        selectedArtisanId: r.selected_artisan_id as string | undefined,
+        bookingId: r.booking_id as string | undefined,
+        status: r.status as JobRequest["status"],
+        createdAt: r.created_at as string,
+        updatedAt: r.updated_at as string,
+      })),
+      diagnoses: (raw.diagnoses ?? []).map((r) => ({
+        id: r.id as string,
+        jobId: r.job_id as string,
+        userId: r.user_id as string,
+        issue_title: r.issue_title as string,
+        summary: r.summary as string,
+        artisan_category: r.artisan_category as DiagnosisRecord["artisan_category"],
+        urgency: r.urgency as DiagnosisRecord["urgency"],
+        estimated_min_naira: r.estimated_min_naira as number,
+        estimated_max_naira: r.estimated_max_naira as number,
+        estimated_labor_naira: r.estimated_labor_naira as number,
+        estimated_materials_naira: r.estimated_materials_naira as number,
+        safety_warning: r.safety_warning as string | null,
+        first_aid_steps: (r.first_aid_steps ?? []) as string[],
+        follow_up_questions: (r.follow_up_questions ?? []) as string[],
+        artisan_brief: r.artisan_brief as DiagnosisRecord["artisan_brief"],
+        language: r.language as DiagnosisRecord["language"],
+        createdAt: r.created_at as string,
+      })),
+      platformFeeBalance: (raw.config?.fee_balance ?? 0) as number,
+    });
+    setLoading(false);
   }, []);
 
-  const runEscrow = (bookingId: string, action: "admin_release" | "admin_refund", note: string) => {
+  useEffect(() => { load(); }, [load]);
+
+  const runEscrow = async (bookingId: string, action: "admin_release" | "admin_refund", note: string) => {
     setActionErrors((prev) => ({ ...prev, [bookingId]: "" }));
-    try { setDb(escrowAction(bookingId, action, note)); }
-    catch (err) { setActionErrors((prev) => ({ ...prev, [bookingId]: err instanceof Error ? err.message : "Action failed." })); }
+    const res = await fetch("/api/admin/escrow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookingId, action, note }),
+    });
+    if (!res.ok) {
+      const j = await res.json() as { error?: string };
+      setActionErrors((prev) => ({ ...prev, [bookingId]: j.error ?? "Action failed." }));
+      return;
+    }
+    await load();
+  };
+
+  const updateArtisan = async (artisanId: string, updates: Partial<Artisan>) => {
+    await fetch(`/api/admin/artisans/${artisanId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    await load();
   };
 
   const getDisputeSummary = async (disputeId: string) => {
-    if (!db) return;
-    const dispute = db.disputes.find((d) => d.id === disputeId);
+    if (!adminData) return;
+    const dispute = adminData.disputes.find((d) => d.id === disputeId);
     if (!dispute) return;
-    const booking = db.bookings.find((b) => b.id === dispute.bookingId);
-    const job = db.job_requests.find((j) => j.id === dispute.jobId);
-    const diagnosis = db.diagnoses.find((d) => d.id === job?.diagnosisId);
+    const booking = adminData.bookings.find((b) => b.id === dispute.bookingId);
+    const job = adminData.jobs.find((j) => j.id === dispute.jobId);
+    const diagnosis = adminData.diagnoses.find((d) => d.id === job?.diagnosisId);
     setLoadingSummary(disputeId);
     try {
       const summary = await generateDisputeSummary({
@@ -63,13 +223,31 @@ export default function AdminPage() {
     } finally { setLoadingSummary(null); }
   };
 
-  if (!db) return null;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <span className="w-6 h-6 border-2 border-gray-200 border-t-green-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
-  const totalEscrow = db.bookings
+  if (error || !adminData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
+        <p className="text-gray-500 font-semibold">{error || "Access denied."}</p>
+        <Link href="/auth?next=/admin" className="bg-green-600 text-white px-6 py-3 text-sm font-black rounded-xl hover:bg-green-700">
+          Sign in →
+        </Link>
+      </div>
+    );
+  }
+
+  const { artisans, bookings, disputes, txns, platformFeeBalance } = adminData;
+  const totalEscrow = bookings
     .filter((b) => !["released", "refunded"].includes(b.escrowStatus))
     .reduce((s, b) => s + b.quoteAmount, 0);
-  const openDisputes = db.disputes.filter((d) => d.status === "open").length;
-  const pendingApps = db.artisans.filter((a) => a.applicationStatus === "pending").length;
+  const openDisputes = disputes.filter((d) => d.status === "open").length;
+  const pendingApps = artisans.filter((a) => a.applicationStatus === "pending").length;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-16">
@@ -107,7 +285,7 @@ export default function AdminPage() {
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 p-4">
             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Fees Earned</p>
-            <p className="text-2xl font-black text-green-600 mt-1">{naira(db.platform_fee_balance)}</p>
+            <p className="text-2xl font-black text-green-600 mt-1">{naira(platformFeeBalance)}</p>
           </div>
         </div>
 
@@ -115,19 +293,19 @@ export default function AdminPage() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Disputes</p>
-            {db.disputes.length > 0 && (
-              <span className="rounded-full text-[10px] font-black px-2 py-0.5 bg-red-600 text-white">{db.disputes.length}</span>
+            {disputes.length > 0 && (
+              <span className="rounded-full text-[10px] font-black px-2 py-0.5 bg-red-600 text-white">{disputes.length}</span>
             )}
           </div>
 
-          {db.disputes.length === 0 ? (
+          {disputes.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
-              <p className="text-sm font-semibold text-gray-400">No disputes. Open one from the booking page to test.</p>
+              <p className="text-sm font-semibold text-gray-400">No disputes.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {db.disputes.map((dispute) => {
-                const booking = db.bookings.find((b) => b.id === dispute.bookingId);
+              {disputes.map((dispute) => {
+                const booking = bookings.find((b) => b.id === dispute.bookingId);
                 const summary = disputeSummaries[dispute.id];
                 const RECO_COLOR: Record<string, string> = {
                   refund: "text-red-700", release: "text-green-700",
@@ -208,7 +386,9 @@ export default function AdminPage() {
             )}
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            {db.artisans.map((artisan, i) => (
+            {artisans.length === 0 ? (
+              <p className="text-xs text-gray-400 font-semibold py-6 text-center">No artisans yet.</p>
+            ) : artisans.map((artisan, i) => (
               <div key={artisan.id} className={`px-5 py-4 flex items-center gap-3 ${i > 0 ? "border-t border-gray-100" : ""}`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -222,28 +402,28 @@ export default function AdminPage() {
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                   <button
-                    onClick={() => setDb(updateArtisan(artisan.id, { applicationStatus: "approved", isVerified: true }))}
+                    onClick={() => updateArtisan(artisan.id, { applicationStatus: "approved", isVerified: true })}
                     className="px-3 py-1.5 bg-green-600 text-white text-xs font-black rounded-lg hover:bg-green-700 transition-colors"
                   >
                     Approve
                   </button>
                   <button
-                    onClick={() => setDb(updateArtisan(artisan.id, { applicationStatus: "rejected", isVerified: false }))}
+                    onClick={() => updateArtisan(artisan.id, { applicationStatus: "rejected", isVerified: false })}
                     className="px-3 py-1.5 border border-red-200 text-red-600 text-xs font-black rounded-lg hover:bg-red-50 transition-colors"
                   >
                     Reject
                   </button>
                   <button
-                    onClick={() => setDb(updateArtisan(artisan.id, { trustScore: Math.min(100, artisan.trustScore + 5) }))}
+                    onClick={() => updateArtisan(artisan.id, { trustScore: Math.min(100, artisan.trustScore + 5) })}
                     className="px-2.5 py-1.5 border border-gray-200 text-gray-600 text-xs font-black rounded-lg hover:bg-gray-50 transition-colors"
-                    title="Trust override +5"
+                    title="Trust +5"
                   >
                     +5
                   </button>
                   <button
-                    onClick={() => setDb(updateArtisan(artisan.id, { trustScore: Math.max(0, artisan.trustScore - 5) }))}
+                    onClick={() => updateArtisan(artisan.id, { trustScore: Math.max(0, artisan.trustScore - 5) })}
                     className="px-2.5 py-1.5 border border-gray-200 text-gray-600 text-xs font-black rounded-lg hover:bg-gray-50 transition-colors"
-                    title="Trust override −5"
+                    title="Trust −5"
                   >
                     −5
                   </button>
@@ -256,11 +436,11 @@ export default function AdminPage() {
         {/* ── PAYMENTS (collapsed) */}
         <details className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <summary className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 cursor-pointer select-none list-none flex items-center justify-between hover:bg-gray-50 transition-colors">
-            <span>Payments &amp; Escrow ({db.bookings.length})</span>
+            <span>Payments &amp; Escrow ({bookings.length})</span>
             <span className="text-gray-300">▾</span>
           </summary>
           <div className="border-t border-gray-100">
-            {db.bookings.length === 0 ? (
+            {bookings.length === 0 ? (
               <p className="text-xs text-gray-400 font-semibold py-6 text-center">No bookings yet.</p>
             ) : (
               <div className="overflow-x-auto">
@@ -275,13 +455,13 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {db.bookings.map((booking) => {
-                      const artisan = db.artisans.find((a) => a.id === booking.artisanId);
+                    {bookings.map((booking) => {
+                      const artisan = artisans.find((a) => a.id === booking.artisanId);
                       const canAct = !["released", "refunded", "not_funded"].includes(booking.escrowStatus);
                       const err = actionErrors[booking.id];
                       return (
                         <tr key={booking.id} className="border-b border-gray-50 hover:bg-gray-50">
-                          <td className="py-3 px-5 font-mono text-xs text-gray-400">{booking.opayReference}</td>
+                          <td className="py-3 px-5 font-mono text-xs text-gray-400">{booking.opayReference || booking.id.slice(0, 8)}</td>
                           <td className="pr-4 text-xs font-semibold text-gray-950">{artisan?.fullName ?? "—"}</td>
                           <td className="pr-4">
                             <span className={`inline-block rounded-full text-[10px] font-black px-2.5 py-1 ${ESCROW_BADGE[booking.escrowStatus] ?? ""}`}>
@@ -318,10 +498,10 @@ export default function AdminPage() {
           </div>
         </details>
 
-        {/* ── ADVANCED: Ledger (collapsed) */}
+        {/* ── LEDGER (collapsed) */}
         <details className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <summary className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 cursor-pointer select-none list-none flex items-center justify-between hover:bg-gray-50 transition-colors">
-            <span>Advanced — Escrow Ledger ({db.escrow_transactions.length})</span>
+            <span>Advanced — Escrow Ledger ({txns.length})</span>
             <span className="text-gray-300">▾</span>
           </summary>
           <div className="border-t border-gray-100 overflow-x-auto">
@@ -336,7 +516,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {db.escrow_transactions.map((tx) => (
+                {txns.map((tx) => (
                   <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50">
                     <td className="py-2 px-5 font-mono text-gray-400">{tx.reference}</td>
                     <td className="pr-4 text-gray-700 capitalize">{tx.action.replaceAll("_", " ")}</td>

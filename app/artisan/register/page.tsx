@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
-import { saveArtisanApplication } from "@/lib/demo-db";
+import { registerArtisan } from "@/lib/api";
 import { ARTISAN_CATEGORIES, ArtisanCategory } from "@/lib/types";
 
 export default function ArtisanRegisterPage() {
@@ -12,19 +12,25 @@ export default function ArtisanRegisterPage() {
   const [location, setLocation] = useState("Ikeja, Lagos");
   const [category, setCategory] = useState<ArtisanCategory>("Plumber");
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    saveArtisanApplication({
+    await registerArtisan({
       fullName: String(form.get("fullName") || ""),
       phone: String(form.get("phone") || ""),
       category,
       location,
       yearsExperience: Number(form.get("yearsExperience") || 0),
-      verificationId: String(form.get("verificationId") || "Verification placeholder"),
-      skills: String(form.get("skills") || "").split(",").map((skill) => skill.trim()).filter(Boolean),
+      verificationId: String(form.get("verificationId") || ""),
+      skills: String(form.get("skills") || "").split(",").map((s) => s.trim()).filter(Boolean),
       serviceRadiusKm: Number(form.get("serviceRadiusKm") || 5),
       opayPhone: String(form.get("opayPhone") || ""),
+      trustScore: 50,
+      isVerified: false,
+      applicationStatus: "pending",
+      avatar: "",
+      emergencyAvailable: false,
+      serviceAreas: [],
     });
     router.push("/artisan/dashboard");
   };

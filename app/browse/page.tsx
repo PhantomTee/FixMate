@@ -4,7 +4,6 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { loadDb } from "@/lib/demo-db";
 import { Artisan, ARTISAN_CATEGORIES } from "@/lib/types";
 
 const ALL = "All";
@@ -25,22 +24,25 @@ export default function BrowsePage() {
 function BrowseContent() {
   const searchParams = useSearchParams();
   const [artisans, setArtisans] = useState<Artisan[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState(searchParams.get("category") ?? ALL);
   const [sort, setSort] = useState("jobs");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   useEffect(() => {
-    try {
-      const db = loadDb();
-      setArtisans(db.artisans.filter((a) => a.applicationStatus === "approved"));
-    } catch { /* SSR */ }
-  }, []);
+    const params = new URLSearchParams();
+    if (category !== ALL) params.set("category", category);
+    if (verifiedOnly) params.set("verified", "true");
+    fetch(`/api/artisans?${params}`)
+      .then((r) => r.json())
+      .then((data) => setArtisans(Array.isArray(data) ? data : []))
+      .catch(() => setArtisans([]))
+      .finally(() => setLoading(false));
+  }, [category, verifiedOnly]);
 
   const filtered = useMemo(() => {
     let list = artisans;
-    if (verifiedOnly) list = list.filter((a) => a.isVerified);
-    if (category !== ALL) list = list.filter((a) => a.category === category);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -56,7 +58,7 @@ function BrowseContent() {
       if (sort === "rating") return (b.rating ?? 0) - (a.rating ?? 0);
       return a.fullName.localeCompare(b.fullName);
     });
-  }, [artisans, search, category, sort, verifiedOnly]);
+  }, [artisans, search, sort]);
 
   const categories = [ALL, ...ARTISAN_CATEGORIES];
 
@@ -126,7 +128,7 @@ function BrowseContent() {
         {/* Result count */}
         <div className="flex items-center justify-between mb-5">
           <p className="text-sm text-gray-400 font-semibold">
-            {filtered.length} artisan{filtered.length !== 1 ? "s" : ""} found
+            {loading ? "Loading…" : `${filtered.length} artisan${filtered.length !== 1 ? "s" : ""} found`}
           </p>
           {(search || category !== ALL || verifiedOnly) && (
             <button
@@ -139,7 +141,13 @@ function BrowseContent() {
         </div>
 
         {/* Grid */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="border border-gray-100 p-5 animate-pulse h-48 bg-gray-50" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="border border-gray-100 py-20 text-center">
             <p className="text-gray-400 text-sm mb-4">No artisans match your filters.</p>
             <button
@@ -169,14 +177,20 @@ function ArtisanCard({ artisan: a }: { artisan: Artisan }) {
     >
       {/* Avatar + name */}
       <div className="flex items-center gap-3 mb-4">
-        <Image
-          unoptimized
-          src={a.avatar}
-          alt={a.fullName}
-          width={48}
-          height={48}
-          className="border border-gray-200 object-cover shrink-0"
-        />
+        {a.avatar ? (
+          <Image
+            unoptimized
+            src={a.avatar}
+            alt={a.fullName}
+            width={48}
+            height={48}
+            className="border border-gray-200 object-cover shrink-0"
+          />
+        ) : (
+          <div className="w-12 h-12 border border-gray-200 bg-gray-100 flex items-center justify-center shrink-0">
+            <span className="text-lg font-black text-gray-400">{a.fullName.charAt(0)}</span>
+          </div>
+        )}
         <div className="min-w-0">
           <h3 className="font-black text-sm text-gray-950 truncate leading-tight">{a.fullName}</h3>
           <p className="text-xs text-gray-400 mt-0.5">{a.category}</p>

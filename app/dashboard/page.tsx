@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import JobChat from "@/components/JobChat";
-import { DEMO_USER_ID, escrowAction, loadDb, saveReview } from "@/lib/demo-db";
+import {
+  loadUserDb,
+  performEscrowAction,
+  saveReview,
+  subscribeBooking,
+} from "@/lib/api";
 import { Booking, DiagnosisRecord, EscrowTransaction, HandijobDB, JobRequest } from "@/lib/types";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
@@ -37,19 +42,24 @@ function greeting() {
 
 export default function DashboardPage() {
   const [db, setDb] = useState<HandijobDB | null>(null);
+  const [loading, setLoading] = useState(true);
   const [reviewText, setReviewText] = useState("");
 
-  const refresh = () => setDb(loadDb());
+  const refresh = useCallback(async () => {
+    const data = await loadUserDb();
+    setDb(data);
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     refresh();
-    window.addEventListener("handijob-db-updated", refresh);
-    return () => window.removeEventListener("handijob-db-updated", refresh);
-  }, []);
+  }, [refresh]);
 
   const data = useMemo(() => {
     if (!db) return null;
-    const user = db.users.find((u) => u.id === DEMO_USER_ID) ?? db.users[0];
-    const jobs = db.job_requests.filter((j) => j.userId === user.id);
+    const user = db.users[0];
+    if (!user) return null;
+    const jobs = db.job_requests;
     const active = jobs.find((j) => !["released", "refunded", "declined"].includes(j.status)) ?? jobs[0];
     const booking = active?.bookingId ? db.bookings.find((b) => b.id === active.bookingId) : undefined;
     const diagnosis = active ? db.diagnoses.find((d) => d.id === active.diagnosisId) : undefined;
@@ -58,19 +68,58 @@ export default function DashboardPage() {
     return { user, jobs, active, booking, diagnosis, artisan, transactions };
   }, [db]);
 
-  if (!db || !data) return null;
+  // Subscribe to active booking's realtime status changes
+  useEffect(() => {
+    const bookingId = data?.booking?.id;
+    if (!bookingId) return;
+    const channel = subscribeBooking(bookingId, (updated) => {
+      setDb((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          bookings: prev.bookings.map((b) => (b.id === updated.id ? updated : b)),
+        };
+      });
+    });
+    return () => { channel.unsubscribe(); };
+  }, [data?.booking?.id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <span className="w-6 h-6 border-2 border-gray-200 border-t-green-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!db || !data) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
+        <p className="text-gray-500 font-semibold">Sign in to view your dashboard.</p>
+        <Link href="/auth?next=/dashboard" className="bg-green-600 text-white px-6 py-3 text-sm font-black rounded-xl hover:bg-green-700">
+          Sign in →
+        </Link>
+      </div>
+    );
+  }
+
   const { user, jobs, active, booking, diagnosis, artisan, transactions } = data;
   const canRelease = booking?.escrowStatus === "completed";
 
-  const run = (action: "user_release" | "open_dispute") => {
+  const run = async (action: "user_release" | "open_dispute") => {
     if (!booking) return;
-    setDb(escrowAction(booking.id, action, action === "open_dispute" ? "Customer opened a dispute." : ""));
+    try {
+      const updated = await performEscrowAction(booking.id, action, action === "open_dispute" ? "Customer opened a dispute." : "");
+      setDb((prev) => prev ? { ...prev, bookings: prev.bookings.map((b) => (b.id === updated.id ? updated : b)) } : prev);
+    } catch { /* ignore */ }
   };
 
-  const submitReview = () => {
+  const submitReview = async () => {
     if (!active || !reviewText.trim()) return;
-    setDb(saveReview(active.id, 5, reviewText.trim()));
-    setReviewText("");
+    try {
+      await saveReview(active.id, 5, reviewText.trim());
+      setReviewText("");
+    } catch { /* ignore */ }
   };
 
   const escrow = booking?.escrowStatus;
@@ -191,6 +240,15 @@ export default function DashboardPage() {
                         Open Dispute
                       </button>
                     </>
+                  )}
+
+                  {escrow === "not_funded" && (
+                    <Link
+                      href={`/booking?bookingId=${booking.id}`}
+                      className="block w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors text-center"
+                    >
+                      Pay Now →
+                    </Link>
                   )}
 
                   {escrow === "released" && (

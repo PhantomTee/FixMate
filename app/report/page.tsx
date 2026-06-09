@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { diagnoseIssue } from "@/app/actions";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
-import { createBooking, createJobWithDiagnosis, getMatchReason, matchArtisans } from "@/lib/demo-db";
+import { createBooking, createJob } from "@/lib/api";
 import { Artisan, DiagnosisRecord, JobRequest, SupportedLanguage } from "@/lib/types";
 import { useHandijobStore } from "@/lib/store";
 
@@ -35,6 +35,7 @@ export default function ReportPage() {
   const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisRecord | null>(null);
   const [job, setJob] = useState<JobRequest | null>(null);
   const [artisans, setArtisans] = useState<Artisan[]>([]);
+  const [bookingError, setBookingError] = useState("");
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,23 +50,49 @@ export default function ReportPage() {
     setIsAnalyzing(true);
     try {
       const result = await diagnoseIssue(description, imagePreview, language);
-      const saved = createJobWithDiagnosis({ description, imageProvided: Boolean(imagePreview), location, diagnosis: result });
-      setDiagnosisResult(saved.diagnosis);
-      setJob(saved.job);
+
+      // Create job + diagnosis in Supabase
+      const { job: savedJob, diagnosis: savedDiagnosis } = await createJob({
+        description,
+        location,
+        imageProvided: Boolean(imagePreview),
+        diagnosis: result,
+      });
+
+      setDiagnosisResult(savedDiagnosis);
+      setJob(savedJob);
       setDiagnosisState(result);
-      setActiveJobId(saved.job.id);
-      setArtisans(matchArtisans(saved.db, result.artisan_category, location).slice(0, 3));
+      setActiveJobId(savedJob.id);
+
+      // Fetch matched artisans from real API
+      const params = new URLSearchParams({
+        match: "true",
+        category: result.artisan_category,
+        location,
+      });
+      const res = await fetch(`/api/artisans?${params}`);
+      const matched: Artisan[] = res.ok ? await res.json() : [];
+      setArtisans(matched.slice(0, 3));
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const handleBook = (artisan: Artisan) => {
+  const handleBook = async (artisan: Artisan) => {
     if (!job || !diagnosisResult) return;
-    const { booking } = createBooking(job.id, artisan.id, diagnosisResult.estimated_max_naira);
-    setSelectedArtisan(artisan);
-    setActiveJobId(job.id);
-    router.push(`/booking?bookingId=${booking.id}`);
+    setBookingError("");
+    try {
+      const booking = await createBooking({
+        jobId: job.id,
+        artisanId: artisan.id,
+        quoteAmount: diagnosisResult.estimated_max_naira,
+      });
+      setSelectedArtisan(artisan);
+      setActiveJobId(job.id);
+      router.push(`/booking?bookingId=${booking.id}`);
+    } catch (err) {
+      setBookingError(err instanceof Error ? err.message : "Failed to create booking.");
+    }
   };
 
   const reset = () => {
@@ -74,6 +101,7 @@ export default function ReportPage() {
     setArtisans([]);
     setImagePreview(null);
     setDescription("");
+    setBookingError("");
   };
 
   return (
@@ -204,11 +232,15 @@ export default function ReportPage() {
                 <div className="mt-3 grid sm:grid-cols-2 gap-4">
                   <div>
                     <p className="font-black text-gray-800 mb-1">First-aid steps</p>
-                    <ul className="space-y-1 text-gray-500 list-disc list-inside">{diagnosisResult.first_aid_steps.map((s) => <li key={s}>{s}</li>)}</ul>
+                    <ul className="space-y-1 text-gray-500 list-disc list-inside">
+                      {diagnosisResult.first_aid_steps.map((s) => <li key={s}>{s}</li>)}
+                    </ul>
                   </div>
                   <div>
                     <p className="font-black text-gray-800 mb-1">Questions for artisan</p>
-                    <ul className="space-y-1 text-gray-500 list-disc list-inside">{diagnosisResult.follow_up_questions.map((q) => <li key={q}>{q}</li>)}</ul>
+                    <ul className="space-y-1 text-gray-500 list-disc list-inside">
+                      {diagnosisResult.follow_up_questions.map((q) => <li key={q}>{q}</li>)}
+                    </ul>
                   </div>
                 </div>
               </details>
@@ -217,15 +249,25 @@ export default function ReportPage() {
             {/* Artisan list */}
             <div>
               <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">Recommended Artisans</h3>
+              {bookingError && (
+                <div className="mb-3 bg-red-50 border border-red-100 px-4 py-3 rounded-xl text-xs text-red-700 font-semibold">
+                  {bookingError}
+                </div>
+              )}
               <div className="space-y-3">
                 {artisans.map((artisan) => {
-                  const matchReason = getMatchReason(artisan, diagnosisResult.artisan_category, location);
                   const brief = diagnosisResult.artisan_brief;
                   return (
                     <div key={artisan.id} className="border border-gray-200 overflow-hidden">
                       <div className="p-4 flex items-center gap-4">
                         <div className="relative shrink-0">
-                          <Image unoptimized src={artisan.avatar} alt={artisan.fullName} width={48} height={48} className="object-cover border border-gray-200" />
+                          {artisan.avatar ? (
+                            <Image unoptimized src={artisan.avatar} alt={artisan.fullName} width={48} height={48} className="object-cover border border-gray-200" />
+                          ) : (
+                            <div className="w-12 h-12 border border-gray-200 bg-gray-100 flex items-center justify-center">
+                              <span className="text-lg font-black text-gray-400">{artisan.fullName.charAt(0)}</span>
+                            </div>
+                          )}
                           {artisan.isVerified && (
                             <span className="absolute -bottom-1 -right-1 bg-green-700 text-white text-[8px] font-black px-1 border border-white">✓</span>
                           )}
@@ -236,7 +278,6 @@ export default function ReportPage() {
                             <span className="text-[10px] font-black text-green-700 bg-green-50 px-1.5 py-0.5">{artisan.trustScore}% Trust</span>
                           </div>
                           <p className="text-xs text-gray-500 mt-0.5">{artisan.category} · {artisan.location}</p>
-                          {matchReason && <p className="text-[11px] text-green-700 font-semibold mt-0.5">{matchReason}</p>}
                         </div>
                         <button
                           onClick={() => handleBook(artisan)}
@@ -261,8 +302,8 @@ export default function ReportPage() {
                 })}
                 {artisans.length === 0 && (
                   <div className="border border-gray-100 p-6 text-center text-sm text-gray-400">
-                    No artisans yet — approve some from the{" "}
-                    <Link href="/admin" className="text-green-700 font-black underline">Admin Console</Link>.
+                    No artisans found near {location}.{" "}
+                    <Link href="/browse" className="text-green-700 font-black underline">Browse all artisans</Link>.
                   </div>
                 )}
               </div>

@@ -1,12 +1,29 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import JobChat from "@/components/JobChat";
-import { CATEGORY_INVENTORY, escrowAction, loadDb, saveInventoryItem } from "@/lib/demo-db";
-import { HandijobDB } from "@/lib/types";
+import {
+  addInventoryItem,
+  getAssignedJobs,
+  getCurrentArtisan,
+  getInventory,
+  performEscrowAction,
+  subscribeBooking,
+} from "@/lib/api";
+import { Artisan, Booking, DiagnosisRecord, InventoryItem, JobRequest } from "@/lib/types";
+import { createClient } from "@/lib/supabase";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
+
+const CATEGORY_INVENTORY: Partial<Record<string, string[]>> = {
+  "AC Repair":        ["R22 AC Gas", "R410A Gas", "Drain hose", "AC capacitor", "Air filter"],
+  "Generator Repair": ["Spark plug", "Engine oil", "Fuel hose", "Carburetor cleaner", "AVR module"],
+  "Plumber":          ["PVC pipe 1/2in", "PVC pipe 1in", "Pipe tape", "Ball valve", "Elbow joint"],
+  "Electrician":      ["Cable 2.5mm", "Cable 4mm", "MCB breaker", "Socket face plate", "Electrical tape"],
+  "Carpenter":        ["Wood screws", "Sandpaper 80g", "Wood glue", "Hinges", "Wood filler"],
+  "Painter":          ["Emulsion paint", "Gloss paint", "Paint roller", "Masking tape", "Primer"],
+};
 
 const ESCROW_BADGE: Record<string, string> = {
   funded:      "bg-yellow-100 text-yellow-700",
@@ -28,50 +45,186 @@ const ESCROW_LABEL: Record<string, string> = {
   not_funded:  "Not funded yet",
 };
 
+interface PageData {
+  artisan: Artisan;
+  jobs: JobRequest[];
+  bookings: Record<string, Booking>;
+  diagnoses: Record<string, DiagnosisRecord>;
+  customers: Record<string, { name: string }>;
+  inventory: InventoryItem[];
+  reviews: Array<{ id: string }>;
+}
+
 export default function ArtisanDashboardPage() {
-  const [db, setDb] = useState<HandijobDB | null>(null);
+  const [data, setData] = useState<PageData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
   const [actionError, setActionError] = useState<Record<string, string>>({});
 
-  const refresh = () => setDb(loadDb());
-  useEffect(() => {
-    refresh();
-    window.addEventListener("handijob-db-updated", refresh);
-    return () => window.removeEventListener("handijob-db-updated", refresh);
+  const load = useCallback(async () => {
+    const artisan = await getCurrentArtisan();
+    if (!artisan) { setLoading(false); return; }
+
+    const supabase = createClient();
+    const [jobs, inventory, { data: reviewsData }] = await Promise.all([
+      getAssignedJobs(artisan.id),
+      getInventory(artisan.id),
+      supabase.from("reviews").select("id").eq("artisan_id", artisan.id),
+    ]);
+
+    // Load bookings, diagnoses, customers in one batch
+    const bookingIds = jobs.map((j) => j.bookingId).filter(Boolean) as string[];
+    const diagnosisIds = jobs.map((j) => j.diagnosisId).filter(Boolean) as string[];
+    const userIds = [...new Set(jobs.map((j) => j.userId))];
+
+    const [
+      { data: bookingsData },
+      { data: diagnosesData },
+      { data: usersData },
+    ] = await Promise.all([
+      bookingIds.length ? supabase.from("bookings").select("*").in("id", bookingIds) : Promise.resolve({ data: [] }),
+      diagnosisIds.length ? supabase.from("diagnoses").select("*").in("id", diagnosisIds) : Promise.resolve({ data: [] }),
+      userIds.length ? supabase.from("users").select("id, name").in("id", userIds) : Promise.resolve({ data: [] }),
+    ]);
+
+    const toBooking = (r: Record<string, unknown>): Booking => ({
+      id: r.id as string,
+      jobId: r.job_id as string,
+      userId: r.user_id as string,
+      artisanId: r.artisan_id as string,
+      quoteAmount: r.quote_amount as number,
+      userFee: r.user_fee as number,
+      artisanFee: r.artisan_fee as number,
+      totalCharge: r.total_charge as number,
+      escrowStatus: r.escrow_status as Booking["escrowStatus"],
+      opayReference: (r.paystack_reference ?? r.opay_reference ?? "") as string,
+      createdAt: r.created_at as string,
+      updatedAt: r.updated_at as string,
+    });
+
+    const toDiagnosis = (r: Record<string, unknown>): DiagnosisRecord => ({
+      id: r.id as string,
+      jobId: r.job_id as string,
+      userId: r.user_id as string,
+      issue_title: r.issue_title as string,
+      summary: r.summary as string,
+      artisan_category: r.artisan_category as DiagnosisRecord["artisan_category"],
+      urgency: r.urgency as DiagnosisRecord["urgency"],
+      estimated_min_naira: r.estimated_min_naira as number,
+      estimated_max_naira: r.estimated_max_naira as number,
+      estimated_labor_naira: r.estimated_labor_naira as number,
+      estimated_materials_naira: r.estimated_materials_naira as number,
+      safety_warning: r.safety_warning as string | null,
+      first_aid_steps: (r.first_aid_steps ?? []) as string[],
+      follow_up_questions: (r.follow_up_questions ?? []) as string[],
+      artisan_brief: r.artisan_brief as DiagnosisRecord["artisan_brief"],
+      language: r.language as DiagnosisRecord["language"],
+      createdAt: r.created_at as string,
+    });
+
+    const bookingsMap = Object.fromEntries(
+      (bookingsData ?? []).map((b) => [b.id, toBooking(b as Record<string, unknown>)])
+    );
+    const diagnosesMap = Object.fromEntries(
+      (diagnosesData ?? []).map((d) => [d.id, toDiagnosis(d as Record<string, unknown>)])
+    );
+    const customersMap = Object.fromEntries(
+      (usersData ?? []).map((u: Record<string, unknown>) => [u.id as string, { name: u.name as string }])
+    );
+
+    setData({
+      artisan,
+      jobs,
+      bookings: bookingsMap,
+      diagnoses: diagnosesMap,
+      customers: customersMap,
+      inventory,
+      reviews: reviewsData ?? [],
+    });
+    setLoading(false);
   }, []);
 
-  const data = useMemo(() => {
-    if (!db) return null;
-    const artisan = db.artisans.find((a) => a.applicationStatus === "approved") ?? db.artisans[0];
-    const jobs = db.job_requests.filter((j) => j.selectedArtisanId === artisan.id);
-    const inventory = db.inventory_items.filter((i) => i.artisanId === artisan.id);
-    const lowStock = inventory.filter((i) => i.quantity <= i.lowStockAt);
-    const reviews = db.reviews.filter((r) => r.artisanId === artisan.id);
-    const activeJobs = jobs.filter((j) => !["released", "refunded", "declined"].includes(j.status));
-    const suggestedItems = CATEGORY_INVENTORY[artisan.category] ?? [];
-    return { artisan, jobs, inventory, lowStock, reviews, activeJobs, suggestedItems };
-  }, [db]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  if (!db || !data) return null;
-  const { artisan, jobs, inventory, lowStock, reviews, activeJobs, suggestedItems } = data;
+  const bookingForJob = useCallback(
+    (job: JobRequest) => (job.bookingId ? data?.bookings[job.bookingId] : undefined),
+    [data]
+  );
 
-  const run = (bookingId: string, action: "artisan_accept" | "artisan_decline" | "mark_in_progress" | "mark_completed") => {
+  // Subscribe to all active booking channels
+  useEffect(() => {
+    if (!data) return;
+    const activeBookingIds = data.jobs
+      .map((j) => j.bookingId)
+      .filter((id): id is string => Boolean(id));
+
+    const channels = activeBookingIds.map((id) =>
+      subscribeBooking(id, (updated) => {
+        setData((prev) => {
+          if (!prev) return prev;
+          return { ...prev, bookings: { ...prev.bookings, [updated.id]: updated } };
+        });
+      })
+    );
+    return () => { channels.forEach((c) => c.unsubscribe()); };
+  }, [data?.jobs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const computed = useMemo(() => {
+    if (!data) return null;
+    const lowStock = data.inventory.filter((i) => i.quantity <= i.lowStockAt);
+    const activeJobs = data.jobs.filter((j) => !["released", "refunded", "declined"].includes(j.status));
+    const suggestedItems = CATEGORY_INVENTORY[data.artisan.category] ?? [];
+    return { lowStock, activeJobs, suggestedItems };
+  }, [data]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <span className="w-6 h-6 border-2 border-gray-200 border-t-green-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!data || !computed) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
+        <p className="text-gray-500 font-semibold">Sign in as an artisan to view this dashboard.</p>
+        <Link href="/auth?next=/artisan/dashboard" className="bg-green-600 text-white px-6 py-3 text-sm font-black rounded-xl hover:bg-green-700">
+          Sign in →
+        </Link>
+      </div>
+    );
+  }
+
+  const { artisan, jobs, inventory, reviews } = data;
+  const { lowStock, activeJobs, suggestedItems } = computed;
+
+  const run = async (bookingId: string, action: "artisan_accept" | "artisan_decline" | "mark_in_progress" | "mark_completed") => {
     setActionError((prev) => ({ ...prev, [bookingId]: "" }));
-    try { setDb(escrowAction(bookingId, action)); }
-    catch (err) { setActionError((prev) => ({ ...prev, [bookingId]: err instanceof Error ? err.message : "Action failed." })); }
+    try {
+      const updated = await performEscrowAction(bookingId, action);
+      setData((prev) => prev ? { ...prev, bookings: { ...prev.bookings, [updated.id]: updated } } : prev);
+    } catch (err) {
+      setActionError((prev) => ({ ...prev, [bookingId]: err instanceof Error ? err.message : "Action failed." }));
+    }
   };
 
-  const addInventory = (e: FormEvent<HTMLFormElement>) => {
+  const addInventory = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    setDb(saveInventoryItem({
-      artisanId: artisan.id,
-      name: String(form.get("name") || ""),
-      quantity: Number(form.get("quantity") || 0),
-      unit: String(form.get("unit") || "pcs"),
-      lowStockAt: Number(form.get("lowStockAt") || 1),
-    }));
-    e.currentTarget.reset();
+    try {
+      const item = await addInventoryItem({
+        artisanId: artisan.id,
+        name: String(form.get("name") || ""),
+        quantity: Number(form.get("quantity") || 0),
+        unit: String(form.get("unit") || "pcs"),
+        lowStockAt: Number(form.get("lowStockAt") || 1),
+      });
+      setData((prev) => prev ? { ...prev, inventory: [...prev.inventory, item] } : prev);
+      e.currentTarget.reset();
+    } catch { /* ignore */ }
   };
 
   return (
@@ -125,21 +278,14 @@ export default function ArtisanDashboardPage() {
 
           {jobs.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-              <p className="text-sm font-semibold text-gray-400">No assigned jobs.</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Go to{" "}
-                <Link href="/report" className="text-green-600 font-black underline">
-                  Report
-                </Link>{" "}
-                and select this artisan.
-              </p>
+              <p className="text-sm font-semibold text-gray-400">No assigned jobs yet.</p>
             </div>
           ) : (
             <div className="space-y-3">
               {jobs.map((job) => {
-                const diagnosis = db.diagnoses.find((d) => d.id === job.diagnosisId);
-                const booking = job.bookingId ? db.bookings.find((b) => b.id === job.bookingId) : undefined;
-                const customer = db.users.find((u) => u.id === job.userId);
+                const diagnosis = data.diagnoses[job.diagnosisId ?? ""];
+                const booking = bookingForJob(job);
+                const customer = data.customers[job.userId];
                 const brief = diagnosis?.artisan_brief;
                 const isExpanded = expandedJob === job.id;
                 const escrow = booking?.escrowStatus;
@@ -186,7 +332,7 @@ export default function ArtisanDashboardPage() {
                       {/* Error */}
                       {jobErr && <p className="text-xs text-red-600 font-semibold">{jobErr}</p>}
 
-                      {/* Single primary CTA per state */}
+                      {/* CTAs */}
                       {booking && (
                         <div className="space-y-2">
                           {canAccept && (
