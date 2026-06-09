@@ -76,7 +76,7 @@ export default function ProfilePage() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 mb-8 justify-center">
           <span className="flex h-9 w-9 items-center justify-center bg-green-600 text-sm font-black text-white rounded-lg">
-            H
+            S
           </span>
           <span className="text-lg font-black text-gray-950">iSabi</span>
         </Link>
