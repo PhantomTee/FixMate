@@ -23,6 +23,18 @@ const ESCROW_BADGE: Record<string, string> = {
   not_funded:  "bg-gray-50 text-gray-400",
 };
 
+// Bar chart colors keyed by escrow status (bg color extracted from ESCROW_BADGE)
+const ESCROW_BAR_COLOR: Record<string, string> = {
+  funded:      "bg-yellow-400",
+  accepted:    "bg-blue-400",
+  in_progress: "bg-purple-400",
+  completed:   "bg-green-400",
+  released:    "bg-gray-300",
+  disputed:    "bg-red-400",
+  refunded:    "bg-gray-200",
+  not_funded:  "bg-gray-200",
+};
+
 interface Dispute {
   id: string;
   bookingId: string;
@@ -249,6 +261,35 @@ export default function AdminPage() {
   const openDisputes = disputes.filter((d) => d.status === "open").length;
   const pendingApps = artisans.filter((a) => a.applicationStatus === "pending").length;
 
+  // ── Analytics derived values ──
+  const totalRevenue = bookings
+    .filter((b) => b.escrowStatus === "released")
+    .reduce((s, b) => s + b.quoteAmount, 0);
+
+  const activeJobs = bookings.filter(
+    (b) => !["released", "refunded", "not_funded"].includes(b.escrowStatus)
+  ).length;
+
+  // Bookings by escrow status
+  const statusCounts = bookings.reduce<Record<string, number>>((acc, b) => {
+    acc[b.escrowStatus] = (acc[b.escrowStatus] ?? 0) + 1;
+    return acc;
+  }, {});
+  const totalBookings = bookings.length;
+
+  const statusOrder: string[] = [
+    "funded", "accepted", "in_progress", "completed", "released", "disputed", "refunded", "not_funded",
+  ];
+  const chartRows = statusOrder
+    .filter((s) => (statusCounts[s] ?? 0) > 0)
+    .map((s) => ({ status: s, count: statusCounts[s] ?? 0 }));
+  const maxCount = Math.max(...chartRows.map((r) => r.count), 1);
+
+  // Top 5 artisans by completedJobs
+  const top5 = [...artisans]
+    .sort((a, b) => b.completedJobs - a.completedJobs)
+    .slice(0, 5);
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-16">
       {/* Header */}
@@ -269,7 +310,113 @@ export default function AdminPage() {
 
       <main className="max-w-4xl mx-auto px-4 py-5 space-y-4">
 
-        {/* Summary strip */}
+        {/* ── ANALYTICS SECTION ── */}
+        <div className="space-y-4">
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Analytics</p>
+
+          {/* KPI chips */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Revenue</p>
+              <p className="text-3xl font-black text-gray-950 mt-1 leading-none">{naira(totalRevenue)}</p>
+            </div>
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Active Jobs</p>
+              <p className="text-3xl font-black text-gray-950 mt-1 leading-none">{activeJobs}</p>
+            </div>
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Registered Artisans</p>
+              <p className="text-3xl font-black text-gray-950 mt-1 leading-none">{artisans.length}</p>
+            </div>
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Pending Approvals</p>
+              <p className="text-3xl font-black text-gray-950 mt-1 leading-none">{pendingApps}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Bookings by status — CSS bar chart */}
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">
+                Bookings by Status
+                {totalBookings > 0 && (
+                  <span className="ml-1.5 font-semibold normal-case tracking-normal text-gray-300">
+                    ({totalBookings} total)
+                  </span>
+                )}
+              </p>
+              {chartRows.length === 0 ? (
+                <p className="text-xs text-gray-400 font-semibold">No bookings yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {chartRows.map(({ status, count }) => {
+                    const pct = totalBookings > 0 ? Math.round((count / totalBookings) * 100) : 0;
+                    const barWidthPct = totalBookings > 0 ? (count / maxCount) * 100 : 0;
+                    const barColor = ESCROW_BAR_COLOR[status] ?? "bg-gray-200";
+                    return (
+                      <div key={status}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-black text-gray-600 capitalize">
+                            {status.replaceAll("_", " ")}
+                          </span>
+                          <span className="text-[10px] font-black text-gray-400">
+                            {count} · {pct}%
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${barColor}`}
+                            style={{ width: `${barWidthPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Top 5 artisans by jobs done */}
+            <div className="bg-white border border-gray-200 p-5 rounded-2xl">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">
+                Top 5 Artisans by Jobs Done
+              </p>
+              {top5.length === 0 ? (
+                <p className="text-xs text-gray-400 font-semibold">No artisans yet</p>
+              ) : (
+                <ol className="space-y-3">
+                  {top5.map((artisan, idx) => (
+                    <li key={artisan.id} className="flex items-center gap-3">
+                      <span
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                          idx === 0
+                            ? "bg-yellow-100 text-yellow-700"
+                            : idx === 1
+                            ? "bg-gray-100 text-gray-600"
+                            : idx === 2
+                            ? "bg-orange-100 text-orange-600"
+                            : "bg-gray-50 text-gray-400"
+                        }`}
+                      >
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black text-gray-950 truncate">{artisan.fullName}</p>
+                        <p className="text-[10px] font-semibold text-gray-400 truncate">{artisan.category}</p>
+                      </div>
+                      <span className="text-xs font-black text-gray-950 shrink-0">
+                        {artisan.completedJobs}
+                        <span className="text-[10px] font-semibold text-gray-400 ml-0.5">jobs</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── SUMMARY STRIP ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className={`bg-white rounded-2xl border p-4 ${openDisputes > 0 ? "border-red-200" : "border-gray-100"}`}>
             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Open Disputes</p>

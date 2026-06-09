@@ -25,21 +25,24 @@ function BrowseContent() {
   const searchParams = useSearchParams();
   const [artisans, setArtisans] = useState<Artisan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch]     = useState("");
   const [category, setCategory] = useState(searchParams.get("category") ?? ALL);
-  const [sort, setSort] = useState("jobs");
+  const [location, setLocation] = useState(searchParams.get("location") ?? "");
+  const [sort, setSort]         = useState("jobs");
   const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
     const params = new URLSearchParams();
     if (category !== ALL) params.set("category", category);
-    if (verifiedOnly) params.set("verified", "true");
+    if (verifiedOnly)     params.set("verified", "true");
+    if (location.trim())  params.set("location", location.trim());
     fetch(`/api/artisans?${params}`)
       .then((r) => r.json())
       .then((data) => setArtisans(Array.isArray(data) ? data : []))
       .catch(() => setArtisans([]))
       .finally(() => setLoading(false));
-  }, [category, verifiedOnly]);
+  }, [category, verifiedOnly, location]);
 
   const filtered = useMemo(() => {
     let list = artisans;
@@ -85,7 +88,14 @@ function BrowseContent() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, trade, or location…"
+            placeholder="Search by name or trade…"
+            className="flex-1 border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 bg-white"
+          />
+          <input
+            type="text"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="Filter by city (e.g. Yaba, Lagos)"
             className="flex-1 border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 bg-white"
           />
           <select
@@ -130,9 +140,9 @@ function BrowseContent() {
           <p className="text-sm text-gray-400 font-semibold">
             {loading ? "Loading…" : `${filtered.length} artisan${filtered.length !== 1 ? "s" : ""} found`}
           </p>
-          {(search || category !== ALL || verifiedOnly) && (
+          {(search || category !== ALL || verifiedOnly || location) && (
             <button
-              onClick={() => { setSearch(""); setCategory(ALL); setVerifiedOnly(false); }}
+              onClick={() => { setSearch(""); setCategory(ALL); setVerifiedOnly(false); setLocation(""); }}
               className="text-xs font-black text-gray-400 hover:text-gray-950 transition-colors underline underline-offset-2"
             >
               Clear filters
@@ -152,9 +162,9 @@ function BrowseContent() {
             <p className="text-gray-400 text-sm mb-4">No artisans match your filters.</p>
             <button
               onClick={() => { setSearch(""); setCategory(ALL); setVerifiedOnly(false); }}
-              className="text-sm font-black text-green-700 hover:text-green-800 underline underline-offset-4"
+              className="text-xs font-black text-gray-400 hover:text-gray-950 transition-colors underline underline-offset-2"
             >
-              Clear all filters
+              Clear filters
             </button>
           </div>
         ) : (
@@ -172,7 +182,7 @@ function BrowseContent() {
 function ArtisanCard({ artisan: a }: { artisan: Artisan }) {
   return (
     <Link
-      href={`/report?artisan=${a.id}`}
+      href={`/artisan/${a.id}`}
       className="bg-white border border-gray-200 p-5 hover:border-green-600 hover:shadow-sm transition-all group flex flex-col"
     >
       {/* Avatar + name */}

@@ -11,7 +11,7 @@ import {
   performEscrowAction,
   subscribeBooking,
 } from "@/lib/api";
-import { Artisan, Booking, DiagnosisRecord, InventoryItem, JobRequest } from "@/lib/types";
+import { Artisan, Booking, DiagnosisRecord, EscrowTransaction, InventoryItem, JobRequest } from "@/lib/types";
 import { createClient } from "@/lib/supabase";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
@@ -45,6 +45,8 @@ const ESCROW_LABEL: Record<string, string> = {
   not_funded:  "Not funded yet",
 };
 
+type Tab = "jobs" | "inventory" | "earnings";
+
 interface PageData {
   artisan: Artisan;
   jobs: JobRequest[];
@@ -60,6 +62,13 @@ export default function ArtisanDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
   const [actionError, setActionError] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState<Tab>("jobs");
+
+  // Earnings tab state
+  const [transactions, setTransactions] = useState<EscrowTransaction[]>([]);
+  const [txLoading, setTxLoading] = useState(false);
+  const [txLoaded, setTxLoaded] = useState(false);
+  const [payoutMsg, setPayoutMsg] = useState("");
 
   const load = useCallback(async () => {
     const artisan = await getCurrentArtisan();
@@ -171,6 +180,34 @@ export default function ArtisanDashboardPage() {
     return () => { channels.forEach((c) => c.unsubscribe()); };
   }, [data?.jobs.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load transactions when earnings tab is first opened
+  useEffect(() => {
+    if (activeTab !== "earnings" || txLoaded) return;
+    setTxLoading(true);
+    fetch("/api/artisan/transactions")
+      .then((r) => r.json())
+      .then((json: { transactions?: Record<string, unknown>[] }) => {
+        const rows = (json.transactions ?? []).map((r) => ({
+          id: r.id as string,
+          reference: r.reference as string,
+          bookingId: r.booking_id as string,
+          jobId: r.job_id as string,
+          action: r.action as string,
+          amount: r.amount as number,
+          userFee: r.user_fee as number,
+          artisanFee: r.artisan_fee as number,
+          platformFee: r.platform_fee as number,
+          actor: r.actor as string,
+          note: (r.note ?? "") as string,
+          createdAt: r.created_at as string,
+        })) as EscrowTransaction[];
+        setTransactions(rows);
+        setTxLoaded(true);
+      })
+      .catch(() => { setTxLoaded(true); })
+      .finally(() => setTxLoading(false));
+  }, [activeTab, txLoaded]);
+
   const computed = useMemo(() => {
     if (!data) return null;
     const lowStock = data.inventory.filter((i) => i.quantity <= i.lowStockAt);
@@ -227,6 +264,14 @@ export default function ArtisanDashboardPage() {
     } catch { /* ignore */ }
   };
 
+  const requestPayout = () => {
+    setPayoutMsg("Payout requests are processed within 24 hours");
+    setTimeout(() => setPayoutMsg(""), 4000);
+  };
+
+  const TAB_ACTIVE = "border-b-2 border-gray-950 text-gray-950 font-black";
+  const TAB_INACTIVE = "text-gray-400 font-semibold hover:text-gray-950";
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-16">
       {/* Header */}
@@ -253,284 +298,396 @@ export default function ArtisanDashboardPage() {
         </div>
       </div>
 
+      {/* Tab bar */}
+      <div className="bg-white border-b border-gray-100 sticky top-[57px] z-10">
+        <div className="max-w-lg mx-auto px-4 flex gap-6">
+          {(["jobs", "inventory", "earnings"] as Tab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`py-3 text-xs uppercase tracking-widest transition-colors ${activeTab === tab ? TAB_ACTIVE : TAB_INACTIVE}`}
+            >
+              {tab === "jobs" ? (
+                <span className="flex items-center gap-1.5">
+                  Jobs
+                  {activeJobs.length > 0 && (
+                    <span className="rounded-full text-[9px] font-black px-1.5 py-0.5 bg-gray-950 text-white leading-none">
+                      {activeJobs.length}
+                    </span>
+                  )}
+                </span>
+              ) : tab === "inventory" ? (
+                <span className="flex items-center gap-1.5">
+                  Inventory
+                  {lowStock.length > 0 && (
+                    <span className="rounded-full text-[9px] font-black px-1.5 py-0.5 bg-red-500 text-white leading-none">
+                      {lowStock.length}
+                    </span>
+                  )}
+                </span>
+              ) : (
+                "Earnings"
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
 
-        {/* Low-stock alert */}
-        {lowStock.length > 0 && (
-          <div className="bg-red-50 rounded-xl border border-red-100 px-4 py-3">
-            <p className="text-xs font-black text-red-700 mb-1">Low stock alert</p>
-            <p className="text-[11px] font-semibold text-red-600">
-              {lowStock.map((i) => `${i.name} (${i.quantity} ${i.unit})`).join(" · ")}
-            </p>
-          </div>
-        )}
-
-        {/* Work queue */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Work Queue</p>
-            {activeJobs.length > 0 && (
-              <span className="rounded-full text-[10px] font-black px-2 py-0.5 bg-gray-950 text-white">
-                {activeJobs.length}
-              </span>
-            )}
-          </div>
-
-          {jobs.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-              <p className="text-sm font-semibold text-gray-400">No assigned jobs yet.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {jobs.map((job) => {
-                const diagnosis = data.diagnoses[job.diagnosisId ?? ""];
-                const booking = bookingForJob(job);
-                const customer = data.customers[job.userId];
-                const brief = diagnosis?.artisan_brief;
-                const isExpanded = expandedJob === job.id;
-                const escrow = booking?.escrowStatus;
-                const canAccept = escrow === "funded";
-                const canProgress = escrow === "accepted";
-                const canComplete = escrow === "in_progress";
-                const canDecline = escrow === "not_funded" || escrow === "funded";
-                const jobErr = actionError[booking?.id ?? ""] ?? "";
-
-                return (
-                  <div key={job.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                    <div className="p-5 space-y-3">
-                      {/* Job header */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-black text-gray-950 text-base leading-snug">
-                            {diagnosis?.issue_title ?? job.description}
-                          </h3>
-                          <p className="text-xs text-gray-400 font-semibold mt-0.5">
-                            {customer?.name ?? "Customer"} · {job.location}
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          {booking ? (
-                            <>
-                              <p className="font-black text-gray-950 text-base leading-none">{naira(booking.quoteAmount)}</p>
-                              <p className="text-[10px] text-gray-400 font-semibold mt-0.5">
-                                You receive {naira(booking.quoteAmount - (booking.artisanFee ?? 0))}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="font-black text-gray-400 text-sm">—</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Status pill */}
-                      {escrow && (
-                        <span className={`inline-block rounded-full text-[10px] font-black px-2.5 py-1 ${ESCROW_BADGE[escrow] ?? "bg-gray-100 text-gray-500"}`}>
-                          {ESCROW_LABEL[escrow] ?? escrow.replaceAll("_", " ")}
-                        </span>
-                      )}
-
-                      {/* Error */}
-                      {jobErr && <p className="text-xs text-red-600 font-semibold">{jobErr}</p>}
-
-                      {/* CTAs */}
-                      {booking && (
-                        <div className="space-y-2">
-                          {canAccept && (
-                            <button
-                              onClick={() => run(booking.id, "artisan_accept")}
-                              className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors"
-                            >
-                              Accept Job
-                            </button>
-                          )}
-                          {canProgress && (
-                            <button
-                              onClick={() => run(booking.id, "mark_in_progress")}
-                              className="w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors"
-                            >
-                              Mark In Progress →
-                            </button>
-                          )}
-                          {canComplete && (
-                            <button
-                              onClick={() => run(booking.id, "mark_completed")}
-                              className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors"
-                            >
-                              Mark Completed ✓
-                            </button>
-                          )}
-                          {escrow === "completed" && (
-                            <div className="w-full py-3 bg-gray-100 text-gray-400 text-sm font-black rounded-xl text-center select-none">
-                              Waiting for customer to release payment
-                            </div>
-                          )}
-                          {canDecline && (
-                            <button
-                              onClick={() => run(booking.id, "artisan_decline")}
-                              className="block w-full text-center text-xs font-black text-gray-400 hover:text-red-600 transition-colors pt-0.5"
-                            >
-                              Decline job
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* AI brief toggle */}
-                      {brief && (
-                        <button
-                          onClick={() => setExpandedJob(isExpanded ? null : job.id)}
-                          className="text-[11px] font-black text-gray-400 hover:text-gray-950 transition-colors"
-                        >
-                          {isExpanded ? "▴ Hide AI brief" : "▾ View AI brief"}
-                        </button>
-                      )}
-
-                      {/* AI brief content */}
-                      {isExpanded && brief && (
-                        <div className="bg-blue-50 rounded-xl px-4 py-3 text-xs space-y-1.5 text-gray-700">
-                          <p><span className="font-black text-gray-800">Problem:</span> {brief.problem_summary}</p>
-                          <p><span className="font-black text-gray-800">Likely cause:</span> {brief.likely_cause}</p>
-                          <p><span className="font-black text-gray-800">Tools:</span> {Array.isArray(brief.tools_to_bring) ? brief.tools_to_bring.join(", ") : brief.tools_to_bring}</p>
-                          <p><span className="font-black text-gray-800">Estimate:</span> {brief.estimated_price_range}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Chat collapsed */}
-                    <details className="border-t border-gray-100">
-                      <summary className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 cursor-pointer select-none list-none flex items-center justify-between hover:bg-gray-50 transition-colors">
-                        <span>Chat with customer</span>
-                        <span className="text-gray-300">▾</span>
-                      </summary>
-                      <div className="px-0 pb-0">
-                        <JobChat jobId={job.id} currentUserType="artisan" />
-                      </div>
-                    </details>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Inventory (collapsed) */}
-        <details className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <summary className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 cursor-pointer select-none list-none flex items-center justify-between hover:bg-gray-50 transition-colors">
-            <span>
-              Inventory
-              {lowStock.length > 0 && (
-                <span className="ml-1.5 text-red-500">· {lowStock.length} low</span>
-              )}
-            </span>
-            <span className="text-gray-300">▾</span>
-          </summary>
-          <div className="px-5 pb-5 pt-4 space-y-3 border-t border-gray-100">
-            {inventory.length === 0 ? (
-              <p className="text-xs text-gray-400 font-semibold">No items yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {inventory.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`flex justify-between items-center p-3 rounded-xl border text-sm ${
-                      item.quantity <= item.lowStockAt
-                        ? "border-red-100 bg-red-50"
-                        : "border-gray-100 bg-gray-50"
-                    }`}
-                  >
-                    <div>
-                      <p className="font-black text-gray-950 text-xs">{item.name}</p>
-                      <p className={`text-[10px] font-semibold mt-0.5 ${item.quantity <= item.lowStockAt ? "text-red-600" : "text-green-600"}`}>
-                        {item.quantity <= item.lowStockAt ? `Low (min ${item.lowStockAt})` : "OK"}
-                      </p>
-                    </div>
-                    <span className="font-black text-gray-950 text-xs">{item.quantity} {item.unit}</span>
-                  </div>
-                ))}
+        {/* ── JOBS TAB ── */}
+        {activeTab === "jobs" && (
+          <>
+            {/* Low-stock alert */}
+            {lowStock.length > 0 && (
+              <div className="bg-red-50 rounded-xl border border-red-100 px-4 py-3">
+                <p className="text-xs font-black text-red-700 mb-1">Low stock alert</p>
+                <p className="text-[11px] font-semibold text-red-600">
+                  {lowStock.map((i) => `${i.name} (${i.quantity} ${i.unit})`).join(" · ")}
+                </p>
               </div>
             )}
 
-            {suggestedItems.length > 0 && (
-              <details className="text-xs">
-                <summary className="text-gray-400 cursor-pointer font-black uppercase tracking-wider select-none">
-                  Suggested for {artisan.category}
-                </summary>
-                <ul className="mt-2 space-y-1 text-gray-500 pl-2">
-                  {suggestedItems.map((s) => (
-                    <li key={s} className="flex gap-1.5">
-                      <span className="text-green-600 font-black">+</span>
-                      {s}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
+            {/* Work queue */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Work Queue</p>
+                {activeJobs.length > 0 && (
+                  <span className="rounded-full text-[10px] font-black px-2 py-0.5 bg-gray-950 text-white">
+                    {activeJobs.length}
+                  </span>
+                )}
+              </div>
 
-            <form onSubmit={addInventory} className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
-              <input
-                name="name"
-                placeholder="Material"
-                className="col-span-2 border border-gray-200 p-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 rounded-lg"
-                required
-              />
-              <input
-                name="quantity"
-                placeholder="Qty"
-                className="border border-gray-200 p-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 rounded-lg"
-                type="number"
-                required
-              />
-              <input
-                name="unit"
-                placeholder="Unit (pcs)"
-                className="border border-gray-200 p-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 rounded-lg"
-                required
-              />
-              <input
-                name="lowStockAt"
-                placeholder="Low at"
-                className="border border-gray-200 p-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 rounded-lg"
-                type="number"
-                required
-              />
-              <button
-                type="submit"
-                className="bg-gray-950 text-white text-xs font-black py-2.5 rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                Add Item
-              </button>
-            </form>
-          </div>
-        </details>
-
-        {/* Earnings & Stats (collapsed) */}
-        <details className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <summary className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 cursor-pointer select-none list-none flex items-center justify-between hover:bg-gray-50 transition-colors">
-            <span>Earnings &amp; Stats</span>
-            <span className="text-gray-300">▾</span>
-          </summary>
-          <div className="px-5 pb-5 pt-4 border-t border-gray-100">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {[
-                { label: "Available",      value: naira(artisan.artisan_available_balance), green: true },
-                { label: "In Escrow",      value: naira(artisan.artisan_pending_balance) },
-                { label: "Jobs Completed", value: String(artisan.completedJobs) },
-                { label: "Reviews",        value: String(reviews.length) },
-                { label: "Platform Fee",   value: "10%" },
-                { label: "Rating",         value: artisan.rating ? `${artisan.rating}★` : "—" },
-              ].map((r) => (
-                <div key={r.label} className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{r.label}</p>
-                  <p className={`text-base font-black mt-1 leading-tight ${r.green ? "text-green-600" : "text-gray-950"}`}>
-                    {r.value}
-                  </p>
+              {jobs.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+                  <p className="text-sm font-semibold text-gray-400">No assigned jobs yet.</p>
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-3">
+                  {jobs.map((job) => {
+                    const diagnosis = data.diagnoses[job.diagnosisId ?? ""];
+                    const booking = bookingForJob(job);
+                    const customer = data.customers[job.userId];
+                    const brief = diagnosis?.artisan_brief;
+                    const isExpanded = expandedJob === job.id;
+                    const escrow = booking?.escrowStatus;
+                    const canAccept = escrow === "funded";
+                    const canProgress = escrow === "accepted";
+                    const canComplete = escrow === "in_progress";
+                    const canDecline = escrow === "not_funded" || escrow === "funded";
+                    const jobErr = actionError[booking?.id ?? ""] ?? "";
+
+                    return (
+                      <div key={job.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                        <div className="p-5 space-y-3">
+                          {/* Job header */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-black text-gray-950 text-base leading-snug">
+                                {diagnosis?.issue_title ?? job.description}
+                              </h3>
+                              <p className="text-xs text-gray-400 font-semibold mt-0.5">
+                                {customer?.name ?? "Customer"} · {job.location}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              {booking ? (
+                                <>
+                                  <p className="font-black text-gray-950 text-base leading-none">{naira(booking.quoteAmount)}</p>
+                                  <p className="text-[10px] text-gray-400 font-semibold mt-0.5">
+                                    You receive {naira(booking.quoteAmount - (booking.artisanFee ?? 0))}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="font-black text-gray-400 text-sm">—</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Status pill */}
+                          {escrow && (
+                            <span className={`inline-block rounded-full text-[10px] font-black px-2.5 py-1 ${ESCROW_BADGE[escrow] ?? "bg-gray-100 text-gray-500"}`}>
+                              {ESCROW_LABEL[escrow] ?? escrow.replaceAll("_", " ")}
+                            </span>
+                          )}
+
+                          {/* Error */}
+                          {jobErr && <p className="text-xs text-red-600 font-semibold">{jobErr}</p>}
+
+                          {/* CTAs */}
+                          {booking && (
+                            <div className="space-y-2">
+                              {canAccept && (
+                                <button
+                                  onClick={() => run(booking.id, "artisan_accept")}
+                                  className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors"
+                                >
+                                  Accept Job
+                                </button>
+                              )}
+                              {canProgress && (
+                                <button
+                                  onClick={() => run(booking.id, "mark_in_progress")}
+                                  className="w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors"
+                                >
+                                  Mark In Progress →
+                                </button>
+                              )}
+                              {canComplete && (
+                                <button
+                                  onClick={() => run(booking.id, "mark_completed")}
+                                  className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors"
+                                >
+                                  Mark Completed ✓
+                                </button>
+                              )}
+                              {escrow === "completed" && (
+                                <div className="w-full py-3 bg-gray-100 text-gray-400 text-sm font-black rounded-xl text-center select-none">
+                                  Waiting for customer to release payment
+                                </div>
+                              )}
+                              {canDecline && (
+                                <button
+                                  onClick={() => run(booking.id, "artisan_decline")}
+                                  className="block w-full text-center text-xs font-black text-gray-400 hover:text-red-600 transition-colors pt-0.5"
+                                >
+                                  Decline job
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* AI brief toggle */}
+                          {brief && (
+                            <button
+                              onClick={() => setExpandedJob(isExpanded ? null : job.id)}
+                              className="text-[11px] font-black text-gray-400 hover:text-gray-950 transition-colors"
+                            >
+                              {isExpanded ? "▴ Hide AI brief" : "▾ View AI brief"}
+                            </button>
+                          )}
+
+                          {/* AI brief content */}
+                          {isExpanded && brief && (
+                            <div className="bg-blue-50 rounded-xl px-4 py-3 text-xs space-y-1.5 text-gray-700">
+                              <p><span className="font-black text-gray-800">Problem:</span> {brief.problem_summary}</p>
+                              <p><span className="font-black text-gray-800">Likely cause:</span> {brief.likely_cause}</p>
+                              <p><span className="font-black text-gray-800">Tools:</span> {Array.isArray(brief.tools_to_bring) ? brief.tools_to_bring.join(", ") : brief.tools_to_bring}</p>
+                              <p><span className="font-black text-gray-800">Estimate:</span> {brief.estimated_price_range}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Chat collapsed */}
+                        <details className="border-t border-gray-100">
+                          <summary className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 cursor-pointer select-none list-none flex items-center justify-between hover:bg-gray-50 transition-colors">
+                            <span>Chat with customer</span>
+                            <span className="text-gray-300">▾</span>
+                          </summary>
+                          <div className="px-0 pb-0">
+                            <JobChat jobId={job.id} currentUserType="artisan" />
+                          </div>
+                        </details>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── INVENTORY TAB ── */}
+        {activeTab === "inventory" && (
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-5 pb-5 pt-5 space-y-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                Inventory
+                {lowStock.length > 0 && (
+                  <span className="ml-1.5 text-red-500">· {lowStock.length} low</span>
+                )}
+              </p>
+              {inventory.length === 0 ? (
+                <p className="text-xs text-gray-400 font-semibold">No items yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {inventory.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`flex justify-between items-center p-3 rounded-xl border text-sm ${
+                        item.quantity <= item.lowStockAt
+                          ? "border-red-100 bg-red-50"
+                          : "border-gray-100 bg-gray-50"
+                      }`}
+                    >
+                      <div>
+                        <p className="font-black text-gray-950 text-xs">{item.name}</p>
+                        <p className={`text-[10px] font-semibold mt-0.5 ${item.quantity <= item.lowStockAt ? "text-red-600" : "text-green-600"}`}>
+                          {item.quantity <= item.lowStockAt ? `Low (min ${item.lowStockAt})` : "OK"}
+                        </p>
+                      </div>
+                      <span className="font-black text-gray-950 text-xs">{item.quantity} {item.unit}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {suggestedItems.length > 0 && (
+                <details className="text-xs">
+                  <summary className="text-gray-400 cursor-pointer font-black uppercase tracking-wider select-none">
+                    Suggested for {artisan.category}
+                  </summary>
+                  <ul className="mt-2 space-y-1 text-gray-500 pl-2">
+                    {suggestedItems.map((s) => (
+                      <li key={s} className="flex gap-1.5">
+                        <span className="text-green-600 font-black">+</span>
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+
+              <form onSubmit={addInventory} className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                <input
+                  name="name"
+                  placeholder="Material"
+                  className="col-span-2 border border-gray-200 p-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 rounded-lg"
+                  required
+                />
+                <input
+                  name="quantity"
+                  placeholder="Qty"
+                  className="border border-gray-200 p-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 rounded-lg"
+                  type="number"
+                  required
+                />
+                <input
+                  name="unit"
+                  placeholder="Unit (pcs)"
+                  className="border border-gray-200 p-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 rounded-lg"
+                  required
+                />
+                <input
+                  name="lowStockAt"
+                  placeholder="Low at"
+                  className="border border-gray-200 p-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 rounded-lg"
+                  type="number"
+                  required
+                />
+                <button
+                  type="submit"
+                  className="bg-gray-950 text-white text-xs font-black py-2.5 rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  Add Item
+                </button>
+              </form>
             </div>
           </div>
-        </details>
+        )}
+
+        {/* ── EARNINGS TAB ── */}
+        {activeTab === "earnings" && (
+          <div className="space-y-4">
+            {/* Balance cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white border border-gray-200 p-5 rounded-2xl">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Available balance</p>
+                <p className="text-3xl font-black text-green-700 mt-1 leading-none">
+                  {naira(artisan.artisan_available_balance)}
+                </p>
+              </div>
+              <div className="bg-white border border-gray-200 p-5 rounded-2xl">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Pending (in escrow)</p>
+                <p className="text-3xl font-black text-yellow-600 mt-1 leading-none">
+                  {naira(artisan.artisan_pending_balance)}
+                </p>
+              </div>
+            </div>
+
+            {/* Request Payout */}
+            <div>
+              <button
+                onClick={requestPayout}
+                className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors"
+              >
+                Request Payout
+              </button>
+              {payoutMsg && (
+                <p className="mt-2 text-xs font-semibold text-green-700 text-center">{payoutMsg}</p>
+              )}
+            </div>
+
+            {/* Transaction History */}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Transaction History</p>
+
+              {txLoading ? (
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="flex gap-3 animate-pulse">
+                      <div className="h-3 bg-gray-100 rounded flex-1" />
+                      <div className="h-3 bg-gray-100 rounded w-20" />
+                      <div className="h-3 bg-gray-100 rounded w-16" />
+                    </div>
+                  ))}
+                </div>
+              ) : transactions.length === 0 ? (
+                <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center">
+                  <p className="text-sm font-semibold text-gray-400">No transactions yet</p>
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          <EarningsTh>Date</EarningsTh>
+                          <EarningsTh>Action</EarningsTh>
+                          <EarningsTh>Amount</EarningsTh>
+                          <EarningsTh>Note</EarningsTh>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {transactions.map((tx) => (
+                          <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50">
+                            <td className="py-3 px-4 text-gray-400 font-semibold whitespace-nowrap">
+                              {new Date(tx.createdAt).toLocaleDateString("en-NG", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </td>
+                            <td className="pr-4 text-gray-700 capitalize font-semibold whitespace-nowrap">
+                              {tx.action.replaceAll("_", " ")}
+                            </td>
+                            <td className="pr-4 font-black text-gray-950 whitespace-nowrap">
+                              {naira(tx.amount)}
+                            </td>
+                            <td className="pr-4 text-gray-400 font-semibold max-w-[140px] truncate">
+                              {tx.note || "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       </main>
     </div>
+  );
+}
+
+function EarningsTh({ children }: { children: React.ReactNode }) {
+  return (
+    <th className="pb-2 px-4 pt-4 text-[10px] font-black uppercase tracking-widest text-gray-400 whitespace-nowrap">
+      {children}
+    </th>
   );
 }

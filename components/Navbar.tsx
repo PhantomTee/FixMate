@@ -13,10 +13,58 @@ const NAV_LINKS = [
 
 type AuthUser = { name: string; isArtisan: boolean } | null;
 
+type Notification = { id: string; title: string; body: string; time: string; read: boolean };
+
+function NotificationList({ onClose }: { onClose: () => void }) {
+  const [items, setItems]   = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/notifications")
+      .then((r) => r.json())
+      .then((d) => setItems(Array.isArray(d.notifications) ? d.notifications : []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="px-4 py-6 flex justify-center">
+        <span className="w-4 h-4 border-2 border-gray-200 border-t-green-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!items.length) {
+    return <p className="px-4 py-6 text-xs text-gray-400 text-center font-semibold">No recent activity.</p>;
+  }
+  return (
+    <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+      {items.map((n) => (
+        <li key={n.id} className={`px-4 py-3 ${n.read ? "opacity-60" : ""}`}>
+          <p className="text-xs font-black text-gray-950 leading-snug">{n.title}</p>
+          <p className="text-xs text-gray-500 mt-0.5 leading-snug">{n.body}</p>
+          <p className="text-[10px] text-gray-300 mt-1">{n.time}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+      <path d="M13.73 21a2 2 0 01-3.46 0"/>
+    </svg>
+  );
+}
+
 export default function Navbar() {
-  const [isOpen, setIsOpen]     = useState(false);
-  const [authUser, setAuthUser] = useState<AuthUser>(null);
+  const [isOpen, setIsOpen]       = useState(false);
+  const [authUser, setAuthUser]   = useState<AuthUser>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [bellOpen, setBellOpen]   = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
   const pathname = usePathname();
   const router   = useRouter();
   const close    = () => setIsOpen(false);
@@ -34,6 +82,12 @@ export default function Navbar() {
           name:      data.user?.name ?? "You",
           isArtisan: !!data.artisan,
         });
+        // Derive a notification count from recent activity
+        const notifRes = await fetch("/api/notifications");
+        if (notifRes.ok) {
+          const notifData = await notifRes.json() as { unread: number };
+          setNotifCount(notifData.unread ?? 0);
+        }
       } catch { /* silently skip */ }
       setAuthReady(true);
     }
@@ -87,10 +141,32 @@ export default function Navbar() {
             {authReady && (
               authUser ? (
                 <>
+                  {/* Notification bell */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setBellOpen((o) => !o)}
+                      className="relative p-2 text-gray-500 hover:text-gray-950 hover:bg-gray-50 rounded-lg transition-colors"
+                      aria-label="Notifications"
+                    >
+                      <BellIcon />
+                      {notifCount > 0 && (
+                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                      )}
+                    </button>
+                    {bellOpen && (
+                      <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                          <span className="text-xs font-black uppercase tracking-widest text-gray-400">Activity</span>
+                          <button onClick={() => setBellOpen(false)} className="text-gray-300 hover:text-gray-950 text-lg leading-none">×</button>
+                        </div>
+                        <NotificationList onClose={() => { setBellOpen(false); setNotifCount(0); }} />
+                      </div>
+                    )}
+                  </div>
                   {/* Greeting chip */}
-                  <span className="text-sm font-black text-gray-600">
+                  <Link href="/profile" className="text-sm font-black text-gray-600 hover:text-gray-950 transition-colors">
                     Hi, {firstName}
-                  </span>
+                  </Link>
                   {authUser.isArtisan && (
                     <Link href="/artisan/dashboard" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
                       Artisan Hub
@@ -154,6 +230,9 @@ export default function Navbar() {
                 <Link href="/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50 font-black text-green-700">
                   My Dashboard — {firstName}
                 </Link>
+                <Link href="/profile" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">
+                  Account Settings
+                </Link>
                 {authUser.isArtisan && (
                   <Link href="/artisan/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">
                     Artisan Hub
@@ -161,7 +240,7 @@ export default function Navbar() {
                 )}
                 <button
                   onClick={signOut}
-                  className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50 text-left text-red-600"
+                  className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50 text-left text-red-600 w-full"
                 >
                   Sign Out
                 </button>
