@@ -14,17 +14,42 @@ import {
 
 const categories = ARTISAN_CATEGORIES.join(", ");
 
+// ── Gemini key rotation ───────────────────────────────────────────────────────
+const GEMINI_KEYS = [
+  process.env.GEMINI_API_KEY_1,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3,
+  // Legacy single-key fallback
+  process.env.GEMINI_API_KEY,
+].filter(Boolean) as string[];
+
+function isQuotaError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /quota|resource_exhausted|429|rate.?limit/i.test(msg);
+}
+
+async function callGemini<T>(fn: (ai: GoogleGenAI) => Promise<T>): Promise<T> {
+  if (GEMINI_KEYS.length === 0) throw new Error("No Gemini API keys configured");
+  let lastErr: unknown;
+  for (const key of GEMINI_KEYS) {
+    try {
+      return await fn(new GoogleGenAI({ apiKey: key }));
+    } catch (err) {
+      lastErr = err;
+      if (!isQuotaError(err)) throw err;
+    }
+  }
+  throw lastErr;
+}
+
 // ── Diagnosis ─────────────────────────────────────────────────────────────────
 export async function diagnoseIssue(
   description: string,
   imageBase64: string | null,
   language: SupportedLanguage = "English"
 ): Promise<JobDiagnosis> {
+  if (GEMINI_KEYS.length === 0) return mockDiagnosis(description, language);
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return mockDiagnosis(description, language);
-
-    const ai = new GoogleGenAI({ apiKey });
     const langNote =
       language !== "English"
         ? `Respond in ${language} for user-facing fields (issue_title, summary, safety_warning, first_aid_steps, follow_up_questions). Keep artisan_category and urgency in English.`
@@ -73,11 +98,13 @@ Return this exact JSON shape:
       contents.push({ inlineData: { mimeType: match[1], data: match[2] } });
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents,
-      config: { responseMimeType: "application/json" },
-    });
+    const response = await callGemini((ai) =>
+      ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents,
+        config: { responseMimeType: "application/json" },
+      })
+    );
 
     const diagnosis = validateDiagnosis(parseJson(response.text || "{}"), description);
     return { ...diagnosis, language };
@@ -92,11 +119,8 @@ export async function generateArtisanBrief(
   diagnosis: JobDiagnosis,
   userLocation: string
 ): Promise<ArtisanBrief> {
+  if (GEMINI_KEYS.length === 0) return mockArtisanBrief(diagnosis);
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return mockArtisanBrief(diagnosis);
-
-    const ai = new GoogleGenAI({ apiKey });
     const prompt = `You are iSabi AI creating a pre-job brief for a Nigerian artisan.
 Return JSON only. No markdown.
 
@@ -113,11 +137,13 @@ Return:
   "estimated_price_range": "₦min – ₦max"
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [prompt],
-      config: { responseMimeType: "application/json" },
-    });
+    const response = await callGemini((ai) =>
+      ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [prompt],
+        config: { responseMimeType: "application/json" },
+      })
+    );
 
     const raw = parseJson(response.text || "{}") as Record<string, unknown>;
     return {
@@ -156,11 +182,8 @@ export async function checkQuoteFairness(
     };
   }
 
+  if (GEMINI_KEYS.length === 0) return localQuoteFairness(artisanQuote, diagnosis);
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return localQuoteFairness(artisanQuote, diagnosis);
-
-    const ai = new GoogleGenAI({ apiKey });
     const prompt = `You are iSabi AI reviewing a Nigerian artisan's quote.
 Return JSON only. No markdown.
 
@@ -177,11 +200,13 @@ Return:
   "recommended_range": "₦X – ₦Y"
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [prompt],
-      config: { responseMimeType: "application/json" },
-    });
+    const response = await callGemini((ai) =>
+      ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [prompt],
+        config: { responseMimeType: "application/json" },
+      })
+    );
 
     const raw = parseJson(response.text || "{}") as Record<string, unknown>;
     const validVerdicts = ["fair", "high_but_explainable", "suspiciously_high", "too_low"];
@@ -205,11 +230,8 @@ export async function generateDisputeSummary(input: {
   diagnosisTitle: string;
   quoteAmount: number;
 }): Promise<DisputeSummary> {
+  if (GEMINI_KEYS.length === 0) return mockDisputeSummary(input);
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return mockDisputeSummary(input);
-
-    const ai = new GoogleGenAI({ apiKey });
     const prompt = `You are iSabi AI summarizing a payment dispute for a platform admin.
 Return JSON only. No markdown.
 
@@ -231,11 +253,13 @@ Return:
   "reasoning": "1-2 sentences explaining the recommendation"
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [prompt],
-      config: { responseMimeType: "application/json" },
-    });
+    const response = await callGemini((ai) =>
+      ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [prompt],
+        config: { responseMimeType: "application/json" },
+      })
+    );
 
     const raw = parseJson(response.text || "{}") as Record<string, unknown>;
     const validActions = ["refund", "release", "partial_refund", "request_evidence"];
