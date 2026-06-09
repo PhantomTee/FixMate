@@ -189,7 +189,7 @@ async function sendMessage(to: string, message: string) {
       from:    TERMII_SENDER_ID,
       sms:     message,
       type:    "plain",
-      channel: "whatsapp",
+      channel: "WhatsApp",
       api_key: TERMII_API_KEY,
     }),
   });
