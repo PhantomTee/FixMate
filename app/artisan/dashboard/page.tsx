@@ -70,6 +70,17 @@ export default function ArtisanDashboardPage() {
   const [txLoaded, setTxLoaded] = useState(false);
   const [payoutMsg, setPayoutMsg] = useState("");
 
+  // Bank + payout state
+  const [banks, setBanks] = useState<Array<{ name: string; code: string }>>([]);
+  const [banksLoaded, setBanksLoaded] = useState(false);
+  const [bankCode, setBankCode] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [resolving, setResolving] = useState(false);
+  const [resolveErr, setResolveErr] = useState("");
+  const [payoutAmount, setPayoutAmount] = useState("");
+  const [payoutLoading, setPayoutLoading] = useState(false);
+
   const load = useCallback(async () => {
     const artisan = await getCurrentArtisan();
     if (!artisan) { setLoading(false); return; }
@@ -208,6 +219,18 @@ export default function ArtisanDashboardPage() {
       .finally(() => setTxLoading(false));
   }, [activeTab, txLoaded]);
 
+  // Load Nigerian banks list when earnings tab opens
+  useEffect(() => {
+    if (activeTab !== "earnings" || banksLoaded) return;
+    fetch("/api/paystack/banks")
+      .then((r) => r.json())
+      .then((json: { banks?: Array<{ name: string; code: string }> }) => {
+        setBanks(json.banks ?? []);
+        setBanksLoaded(true);
+      })
+      .catch(() => setBanksLoaded(true));
+  }, [activeTab, banksLoaded]);
+
   const computed = useMemo(() => {
     if (!data) return null;
     const lowStock = data.inventory.filter((i) => i.quantity <= i.lowStockAt);
@@ -264,9 +287,65 @@ export default function ArtisanDashboardPage() {
     } catch { /* ignore */ }
   };
 
-  const requestPayout = () => {
-    setPayoutMsg("Payout requests are processed within 24 hours");
-    setTimeout(() => setPayoutMsg(""), 4000);
+  const resolveAccount = async () => {
+    if (!bankCode || accountNumber.length < 10) return;
+    setResolving(true);
+    setResolveErr("");
+    setAccountName("");
+    try {
+      const res = await fetch("/api/paystack/resolve-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_number: accountNumber.trim(), bank_code: bankCode }),
+      });
+      const json = await res.json() as { account_name?: string; error?: string };
+      if (!res.ok || !json.account_name) throw new Error(json.error ?? "Could not verify account");
+      setAccountName(json.account_name);
+    } catch (err) {
+      setResolveErr(err instanceof Error ? err.message : "Verification failed");
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const requestPayout = async () => {
+    if (!accountName || !bankCode || !accountNumber) {
+      setPayoutMsg("Please verify your bank account first.");
+      return;
+    }
+    const amount = parseFloat(payoutAmount);
+    if (!amount || amount < 100) {
+      setPayoutMsg("Minimum payout is ₦100.");
+      return;
+    }
+    setPayoutLoading(true);
+    setPayoutMsg("");
+    try {
+      const res = await fetch("/api/paystack/payout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bank_code: bankCode,
+          account_number: accountNumber.trim(),
+          account_name: accountName,
+          amount_naira: amount,
+        }),
+      });
+      const json = await res.json() as { success?: boolean; transfer_code?: string; error?: string };
+      if (!res.ok || !json.success) throw new Error(json.error ?? "Payout failed");
+      setPayoutMsg(`Transfer initiated! Code: ${json.transfer_code ?? "pending"}`);
+      // Reset form
+      setAccountNumber("");
+      setAccountName("");
+      setBankCode("");
+      setPayoutAmount("");
+      // Reload artisan data to reflect updated balance
+      load();
+    } catch (err) {
+      setPayoutMsg(err instanceof Error ? err.message : "Payout failed. Try again.");
+    } finally {
+      setPayoutLoading(false);
+    }
   };
 
   const TAB_ACTIVE = "border-b-2 border-gray-950 text-gray-950 font-black";
@@ -606,17 +685,85 @@ export default function ArtisanDashboardPage() {
               </div>
             </div>
 
-            {/* Request Payout */}
-            <div>
-              <button
-                onClick={requestPayout}
-                className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors"
-              >
-                Request Payout
-              </button>
-              {payoutMsg && (
-                <p className="mt-2 text-xs font-semibold text-green-700 text-center">{payoutMsg}</p>
-              )}
+            {/* Bank Account + Payout */}
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Request Payout</p>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                {/* Bank picker */}
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">Bank</label>
+                  <select
+                    value={bankCode}
+                    onChange={(e) => { setBankCode(e.target.value); setAccountName(""); setResolveErr(""); }}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900 bg-white"
+                  >
+                    <option value="">Select bank…</option>
+                    {banks.map((b) => (
+                      <option key={b.code} value={b.code}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Account number */}
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">Account number</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={10}
+                      value={accountNumber}
+                      onChange={(e) => { setAccountNumber(e.target.value.replace(/\D/g, "")); setAccountName(""); setResolveErr(""); }}
+                      placeholder="0123456789"
+                      className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900"
+                    />
+                    <button
+                      onClick={resolveAccount}
+                      disabled={resolving || !bankCode || accountNumber.length < 10}
+                      className="px-4 py-3 bg-gray-950 text-white text-xs font-black rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40 whitespace-nowrap"
+                    >
+                      {resolving ? "Checking…" : "Verify"}
+                    </button>
+                  </div>
+                  {resolveErr && <p className="mt-1 text-xs text-red-600 font-semibold">{resolveErr}</p>}
+                  {accountName && (
+                    <p className="mt-1 text-xs font-black text-green-700">✓ {accountName}</p>
+                  )}
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                    Amount (₦) <span className="normal-case font-semibold">— max {naira(artisan.artisan_available_balance)}</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={100}
+                    max={artisan.artisan_available_balance}
+                    value={payoutAmount}
+                    onChange={(e) => setPayoutAmount(e.target.value)}
+                    placeholder="e.g. 5000"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900"
+                  />
+                </div>
+
+                <button
+                  onClick={requestPayout}
+                  disabled={payoutLoading || !accountName || !payoutAmount || artisan.artisan_available_balance <= 0}
+                  className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  {payoutLoading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  {payoutLoading ? "Processing…" : "Transfer to Bank →"}
+                </button>
+
+                {payoutMsg && (
+                  <p className={`text-xs font-semibold text-center ${payoutMsg.startsWith("Transfer initiated") ? "text-green-700" : "text-red-600"}`}>
+                    {payoutMsg}
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Transaction History */}

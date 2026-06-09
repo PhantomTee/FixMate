@@ -3,10 +3,26 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Script from "next/script";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase";
 import { performEscrowAction, subscribeBooking } from "@/lib/api";
 import { Artisan, Booking, DiagnosisRecord, JobRequest } from "@/lib/types";
+
+interface PaystackPopOptions {
+  key: string;
+  email: string;
+  amount: number;
+  ref: string;
+  currency?: string;
+  onSuccess: (transaction: { reference: string }) => void;
+  onCancel: () => void;
+}
+declare global {
+  interface Window {
+    PaystackPop: new () => { newTransaction: (opts: PaystackPopOptions) => void };
+  }
+}
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
 
@@ -199,9 +215,33 @@ export default function BookingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bookingId: data.booking.id }),
       });
-      const json = await res.json() as { authorizationUrl?: string; error?: string };
-      if (!res.ok || !json.authorizationUrl) throw new Error(json.error ?? "Payment init failed");
-      window.location.href = json.authorizationUrl;
+      const json = await res.json() as {
+        reference?: string;
+        publicKey?: string;
+        email?: string;
+        amountKobo?: number;
+        error?: string;
+      };
+      if (!res.ok || !json.reference) throw new Error(json.error ?? "Payment init failed");
+
+      const PaystackPop = window.PaystackPop;
+      if (!PaystackPop) throw new Error("Payment script not loaded. Please refresh the page.");
+
+      const popup = new PaystackPop();
+      popup.newTransaction({
+        key:      json.publicKey!,
+        email:    json.email!,
+        amount:   json.amountKobo!,
+        ref:      json.reference,
+        currency: "NGN",
+        onSuccess: () => {
+          // Realtime subscription will pick up the webhook-driven status update
+          setIsWorking(false);
+        },
+        onCancel: () => {
+          setIsWorking(false);
+        },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Payment failed.");
       setIsWorking(false);
@@ -235,6 +275,7 @@ export default function BookingPage() {
 
   return (
     <div className="min-h-screen bg-white font-sans pb-20">
+      <Script src="https://js.paystack.co/v2/inline.js" strategy="afterInteractive" />
       {/* Header */}
       <div className="border-b border-gray-100 px-4 sm:px-6 py-4 flex items-center gap-3">
         <Link href="/dashboard" className="text-gray-400 hover:text-gray-950 text-sm font-black transition-colors">← Back</Link>
@@ -302,7 +343,7 @@ export default function BookingPage() {
                 className="w-full py-4 bg-green-700 text-white font-black text-base hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {isWorking && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {isWorking ? "Redirecting…" : `Pay ${naira(booking.totalCharge)} via Paystack →`}
+                {isWorking ? "Opening payment…" : `Pay ${naira(booking.totalCharge)} via Paystack →`}
               </button>
               <p className="text-center text-xs text-gray-400">
                 Secured by Paystack escrow · funds held until job is complete

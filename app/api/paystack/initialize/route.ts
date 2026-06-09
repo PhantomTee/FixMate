@@ -65,5 +65,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     authorizationUrl: paystack.data.authorization_url,
     reference:        paystack.data.reference,
+    publicKey:        process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? "",
+    email:            `${customer?.phone ?? user.id}@isabi.ng`,
+    amountKobo,
   });
 }
