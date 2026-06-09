@@ -17,10 +17,11 @@ const BASE             = "https://v3.api.termii.com";
 
 export async function POST(req: NextRequest) {
   const body = await req.json() as {
-    action: "send" | "verify";
-    phone:  string;
-    pin_id?: string;
-    otp?:   string;
+    action:   "send" | "verify";
+    phone:    string;
+    channel?: "WhatsApp" | "sms";
+    pin_id?:  string;
+    otp?:     string;
   };
 
   if (body.action === "send") {
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
         message_type:      "NUMERIC",
         to:                body.phone,
         from:              TERMII_SENDER_ID,
-        channel:           "WhatsApp",
+        channel:           body.channel === "sms" ? "generic" : "WhatsApp",
         pin_attempts:      3,
         pin_time_to_live:  10,
         pin_length:        6,

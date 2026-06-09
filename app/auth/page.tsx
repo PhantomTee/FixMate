@@ -11,6 +11,7 @@ export default function AuthPage() {
   const [otp, setOtp] = useState("");
   const [pinId, setPinId] = useState("");
   const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [channel, setChannel] = useState<"WhatsApp" | "sms">("WhatsApp");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -26,7 +27,7 @@ export default function AuthPage() {
       const res = await fetch("/api/auth/otp", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ action: "send", phone: phone.trim() }),
+        body:    JSON.stringify({ action: "send", phone: phone.trim(), channel }),
       });
       const data = await res.json() as { pin_id?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed to send OTP");
@@ -92,7 +93,7 @@ export default function AuthPage() {
           <div>
             <h1 className="text-xl font-black text-gray-950">Sign in</h1>
             <p className="text-xs text-gray-400 mt-1 font-semibold">
-              We&apos;ll send a one-time code via WhatsApp.
+              We&apos;ll send a one-time code via {channel === "WhatsApp" ? "WhatsApp" : "SMS"}.
             </p>
           </div>
 
@@ -104,6 +105,24 @@ export default function AuthPage() {
 
           {step === "phone" ? (
             <>
+              {/* Channel toggle */}
+              <div className="flex gap-2">
+                {(["WhatsApp", "sms"] as const).map((ch) => (
+                  <button
+                    key={ch}
+                    type="button"
+                    onClick={() => setChannel(ch)}
+                    className={`flex-1 py-2.5 text-xs font-black rounded-xl border transition-colors ${
+                      channel === ch
+                        ? "bg-green-600 text-white border-green-600"
+                        : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
+                    }`}
+                  >
+                    {ch === "WhatsApp" ? "📱 WhatsApp" : "💬 SMS"}
+                  </button>
+                ))}
+              </div>
+
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
                   Phone number
@@ -125,7 +144,7 @@ export default function AuthPage() {
                 className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {loading ? "Sending…" : "Send OTP via WhatsApp →"}
+                {loading ? "Sending…" : `Send OTP via ${channel === "WhatsApp" ? "WhatsApp" : "SMS"} →`}
               </button>
             </>
           ) : (
@@ -146,7 +165,7 @@ export default function AuthPage() {
                   autoFocus
                 />
                 <p className="text-[10px] text-gray-400 mt-1 text-center">
-                  Sent to {phone} via WhatsApp
+                  Sent to {phone} via {channel === "WhatsApp" ? "WhatsApp" : "SMS"}
                 </p>
               </div>
               <button

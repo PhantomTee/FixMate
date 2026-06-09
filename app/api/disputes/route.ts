@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSideClient, createServiceClient } from "@/lib/supabase";
+import { sendNotification } from "@/lib/notify";
 
 export async function POST(req: Request) {
   const { cookies } = await import("next/headers");
@@ -49,6 +50,17 @@ export async function POST(req: Request) {
   if (rpcError) {
     return NextResponse.json({ error: rpcError.message }, { status: 500 });
   }
+
+  // Notify both parties about the dispute
+  const [{ data: userRow }, { data: artisanRow }] = await Promise.all([
+    service.from("users").select("phone").eq("id", user.id).single(),
+    service.from("artisans").select("phone").eq("id", artisanId).single(),
+  ]);
+  const disputeMsg = `⚠️ A dispute has been opened on your booking. Our team will review within 24 hours and reach out if more information is needed.`;
+  await Promise.all([
+    userRow?.phone    ? sendNotification(userRow.phone, disputeMsg)    : Promise.resolve(),
+    artisanRow?.phone ? sendNotification(artisanRow.phone, disputeMsg) : Promise.resolve(),
+  ]);
 
   return NextResponse.json({ ok: true });
 }

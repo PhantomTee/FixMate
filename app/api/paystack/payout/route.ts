@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSideClient, createServiceClient } from "@/lib/supabase";
+import { sendNotification } from "@/lib/notify";
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY!;
 
@@ -90,11 +91,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 3. Deduct from artisan available balance
-  await service
-    .from("artisans")
-    .update({ artisan_available_balance: (artisan.artisan_available_balance ?? 0) - amount_naira })
-    .eq("id", artisan.id);
+  // 3. Deduct from artisan available balance + fetch phone for notification
+  const [, { data: artisanWithPhone }] = await Promise.all([
+    service
+      .from("artisans")
+      .update({ artisan_available_balance: (artisan.artisan_available_balance ?? 0) - amount_naira })
+      .eq("id", artisan.id),
+    service.from("artisans").select("phone").eq("id", artisan.id).single(),
+  ]);
+
+  if (artisanWithPhone?.phone) {
+    void sendNotification(
+      artisanWithPhone.phone,
+      `🏦 Transfer of ₦${amount_naira.toLocaleString()} initiated to your bank account. Funds typically arrive within 24 hours.`
+    );
+  }
 
   return NextResponse.json({
     success:       true,

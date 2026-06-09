@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { createServiceClient } from "@/lib/supabase";
+import { sendNotification } from "@/lib/notify";
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY!;
 
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
   // Verify the reference matches the booking
   const { data: booking } = await service
     .from("bookings")
-    .select("id, escrow_status, paystack_reference")
+    .select("id, escrow_status, paystack_reference, artisan_id, total_charge")
     .eq("id", bookingId)
     .single();
 
@@ -70,6 +71,22 @@ export async function POST(req: NextRequest) {
   if (error) {
     console.error("Escrow fund_escrow failed:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Notify artisan that a new funded job is waiting
+  if (booking.artisan_id) {
+    const { data: artisan } = await service
+      .from("artisans")
+      .select("phone, full_name")
+      .eq("id", booking.artisan_id)
+      .single();
+    if (artisan?.phone) {
+      const amount = `₦${(booking.total_charge ?? 0).toLocaleString()}`;
+      void sendNotification(
+        artisan.phone,
+        `🔔 New funded job! A client has locked ${amount} in escrow for you. Open iSabi to accept → https://isabi.ng/artisan/dashboard`
+      );
+    }
   }
 
   return NextResponse.json({ received: true });
