@@ -44,6 +44,9 @@ export default function DashboardPage() {
   const [db, setDb] = useState<HandijobDB | null>(null);
   const [loading, setLoading] = useState(true);
   const [reviewText, setReviewText] = useState("");
+  const [disputeOpen, setDisputeOpen] = useState(false);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [disputeLoading, setDisputeLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     const data = await loadUserDb();
@@ -106,12 +109,34 @@ export default function DashboardPage() {
   const { user, jobs, active, booking, diagnosis, artisan, transactions } = data;
   const canRelease = booking?.escrowStatus === "completed";
 
-  const run = async (action: "user_release" | "open_dispute") => {
+  const run = async (action: "user_release") => {
     if (!booking) return;
     try {
-      const updated = await performEscrowAction(booking.id, action, action === "open_dispute" ? "Customer opened a dispute." : "");
+      const updated = await performEscrowAction(booking.id, action, "");
       setDb((prev) => prev ? { ...prev, bookings: prev.bookings.map((b) => (b.id === updated.id ? updated : b)) } : prev);
     } catch { /* ignore */ }
+  };
+
+  const submitDispute = async () => {
+    if (!booking || !active || !disputeReason.trim()) return;
+    setDisputeLoading(true);
+    try {
+      await fetch("/api/disputes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId:  booking.id,
+          jobId:      active.id,
+          artisanId:  booking.artisanId,
+          reason:     disputeReason.trim(),
+        }),
+      });
+      setDisputeOpen(false);
+      setDisputeReason("");
+      await refresh();
+    } catch { /* ignore */ } finally {
+      setDisputeLoading(false);
+    }
   };
 
   const submitReview = async () => {
@@ -218,7 +243,7 @@ export default function DashboardPage() {
                         Release Payment →
                       </button>
                       <button
-                        onClick={() => run("open_dispute")}
+                        onClick={() => setDisputeOpen(true)}
                         className="w-full py-2.5 border border-red-200 text-red-600 text-sm font-black rounded-xl hover:bg-red-50 transition-colors"
                       >
                         Open Dispute
@@ -234,7 +259,7 @@ export default function DashboardPage() {
                         {escrow === "in_progress" && "Waiting for artisan to complete"}
                       </div>
                       <button
-                        onClick={() => run("open_dispute")}
+                        onClick={() => setDisputeOpen(true)}
                         className="w-full py-2 border border-red-200 text-red-600 text-xs font-black rounded-xl hover:bg-red-50 transition-colors"
                       >
                         Open Dispute
@@ -355,6 +380,41 @@ export default function DashboardPage() {
         </details>
 
       </main>
+
+      {/* Dispute modal */}
+      {disputeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl border border-gray-100 w-full max-w-sm p-6 space-y-4">
+            <div>
+              <h2 className="font-black text-gray-950">Open a Dispute</h2>
+              <p className="text-xs text-gray-400 mt-1 font-semibold">Describe the issue. Our team reviews disputes within 24 hours.</p>
+            </div>
+            <textarea
+              value={disputeReason}
+              onChange={(e) => setDisputeReason(e.target.value)}
+              placeholder="e.g. Artisan did not complete the work as agreed…"
+              rows={4}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-red-400 resize-none text-gray-900"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setDisputeOpen(false); setDisputeReason(""); }}
+                className="flex-1 py-3 border border-gray-200 text-gray-600 text-sm font-black rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitDispute}
+                disabled={disputeLoading || !disputeReason.trim()}
+                className="flex-1 py-3 bg-red-600 text-white text-sm font-black rounded-xl hover:bg-red-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {disputeLoading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {disputeLoading ? "Submitting…" : "Submit Dispute"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

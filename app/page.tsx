@@ -312,7 +312,7 @@ export default function HomePage() {
               {featuredArtisans.map((a, i) => (
                 <Link
                   key={a.id}
-                  href={`/browse?artisan=${a.id}`}
+                  href={`/artisan/${a.id}`}
                   className={`bg-white border border-gray-200 p-5 hover:border-green-400 hover:shadow-md transition-all group ${i % 2 === 0 ? "rounded-2xl" : "rounded-none"}`}
                 >
                   <div className="flex items-center gap-3 mb-3">
