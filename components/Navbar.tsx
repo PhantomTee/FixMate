@@ -41,7 +41,7 @@ export default function Navbar() {
 
           {/* Desktop right */}
           <div className="hidden items-center gap-2.5 md:flex">
-            <Link href="/dashboard" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
+            <Link href="/auth" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
               Sign In
             </Link>
             <Link href="/artisan/register" className="bg-green-700 px-5 py-2 text-sm font-black text-white hover:bg-green-800 transition-colors rounded-lg">
@@ -78,7 +78,7 @@ export default function Navbar() {
             <Link href="/"            onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Home</Link>
             <Link href="/browse"      onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Browse Artisans</Link>
             <Link href="/report"      onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Post a Job</Link>
-            <Link href="/dashboard"   onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">My Dashboard</Link>
+            <Link href="/auth?next=/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Sign In / Dashboard</Link>
             <Link href="/artisan/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Artisan Hub</Link>
             <Link href="/artisan/register"  onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Become an Artisan</Link>
             <div className="px-6 py-5 space-y-3">
