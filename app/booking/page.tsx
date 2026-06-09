@@ -155,7 +155,7 @@ export default function BookingPage() {
         job: toJobRequest(job as Record<string, unknown>),
         artisan: toArtisan(artisan as Record<string, unknown>),
         diagnosis: toDiagnosis(diagnosis as Record<string, unknown>),
-        userPhone: authUser.data.user?.phone ?? "",
+        userPhone: authUser.user?.phone ?? "",
       });
       setLoading(false);
     }
