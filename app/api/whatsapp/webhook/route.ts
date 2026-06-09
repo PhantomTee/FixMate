@@ -181,7 +181,7 @@ async function setSession(service: any, phone: string, state: string, context: R
 }
 
 async function sendMessage(to: string, message: string) {
-  await fetch("https://api.ng.termii.com/api/sms/send", {
+  await fetch("https://v3.api.termii.com/api/sms/send", {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

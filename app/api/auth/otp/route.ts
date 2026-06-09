@@ -13,7 +13,7 @@ import { createServiceClient } from "@/lib/supabase";
 
 const TERMII_API_KEY   = process.env.TERMII_API_KEY!;
 const TERMII_SENDER_ID = process.env.TERMII_SENDER_ID ?? "Handijob";
-const BASE             = "https://api.ng.termii.com";
+const BASE             = "https://v3.api.termii.com";
 
 export async function POST(req: NextRequest) {
   const body = await req.json() as {
