@@ -119,8 +119,8 @@ export default function Navbar() {
 
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <span className="flex h-8 w-8 items-center justify-center bg-green-700 text-sm font-black text-white rounded-lg">H</span>
-            <span className="text-base font-black tracking-tight text-gray-950">Handijob</span>
+            <span className="flex h-8 w-8 items-center justify-center bg-green-700 text-sm font-black text-white rounded-lg">S</span>
+            <span className="text-base font-black tracking-tight text-gray-950">iSabi</span>
           </Link>
 
           {/* Desktop nav */}

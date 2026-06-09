@@ -25,7 +25,7 @@ interface FixMateState {
   addChatMessage: (jobId: string, message: ChatMessage) => void;
 }
 
-export const useHandijobStore = create<FixMateState>((set) => ({
+export const useiSabiStore = create<FixMateState>((set) => ({
   diagnosis: null,
   setDiagnosis: (d) => set({ diagnosis: d }),
   selectedArtisan: null,

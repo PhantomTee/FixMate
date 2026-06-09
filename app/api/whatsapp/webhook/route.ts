@@ -6,7 +6,7 @@
  *
  * Required env vars:
  *   TERMII_API_KEY        – from Termii dashboard → Settings → API Key
- *   TERMII_SENDER_ID      – your approved WhatsApp sender ID (e.g. "Handijob")
+ *   TERMII_SENDER_ID      – your approved WhatsApp sender ID (e.g. "iSabi")
  *   WHATSAPP_VERIFY_TOKEN – any random string; set same value in Termii webhook config
  */
 
@@ -15,7 +15,7 @@ import { createServiceClient } from "@/lib/supabase";
 import { diagnoseIssue } from "@/app/actions";
 
 const TERMII_API_KEY   = process.env.TERMII_API_KEY!;
-const TERMII_SENDER_ID = process.env.TERMII_SENDER_ID ?? "Handijob";
+const TERMII_SENDER_ID = process.env.TERMII_SENDER_ID ?? "iSabi";
 const VERIFY_TOKEN     = process.env.WHATSAPP_VERIFY_TOKEN!;
 
 // ── Verification handshake (Termii sends a GET to confirm the URL) ─

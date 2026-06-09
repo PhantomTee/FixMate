@@ -12,7 +12,7 @@ const font = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Handijob — Nigeria's Home Repair Marketplace",
+  title: "iSabi — Nigeria's Home Repair Marketplace",
   description:
     "Find verified, trusted artisans for any home repair in Nigeria. Secure escrow payments, AI-powered job matching, and real reviews.",
 };

@@ -8,7 +8,7 @@ import { diagnoseIssue } from "@/app/actions";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
 import { createBooking, createJob } from "@/lib/api";
 import { Artisan, DiagnosisRecord, JobRequest, SupportedLanguage } from "@/lib/types";
-import { useHandijobStore } from "@/lib/store";
+import { useiSabiStore } from "@/lib/store";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
 const LANGUAGES: SupportedLanguage[] = ["English", "Pidgin", "Yoruba", "Hausa", "Igbo"];
@@ -23,9 +23,9 @@ const URGENCY_COLOR: Record<string, string> = {
 export default function ReportPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const setDiagnosisState = useHandijobStore((s) => s.setDiagnosis);
-  const setSelectedArtisan = useHandijobStore((s) => s.setSelectedArtisan);
-  const setActiveJobId = useHandijobStore((s) => s.setActiveJobId);
+  const setDiagnosisState = useiSabiStore((s) => s.setDiagnosis);
+  const setSelectedArtisan = useiSabiStore((s) => s.setSelectedArtisan);
+  const setActiveJobId = useiSabiStore((s) => s.setActiveJobId);
 
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("Yaba, Lagos");

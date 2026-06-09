@@ -24,11 +24,11 @@ export default function OPaySimulatorPage() {
 
   useEffect(() => {
     refresh();
-    window.addEventListener("handijob-opay-updated", refresh);
-    window.addEventListener("handijob-db-updated", refresh);
+    window.addEventListener("isabi-opay-updated", refresh);
+    window.addEventListener("isabi-db-updated", refresh);
     return () => {
-      window.removeEventListener("handijob-opay-updated", refresh);
-      window.removeEventListener("handijob-db-updated", refresh);
+      window.removeEventListener("isabi-opay-updated", refresh);
+      window.removeEventListener("isabi-db-updated", refresh);
     };
   }, []);
 
@@ -62,7 +62,7 @@ export default function OPaySimulatorPage() {
     <div className="min-h-screen bg-gray-50 font-sans pb-16">
       <header className="bg-white px-4 sm:px-6 py-4 flex items-center justify-between border-b shadow-sm">
         <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-green-700 mb-0.5">Handijob</div>
+          <div className="text-xs font-bold uppercase tracking-widest text-green-700 mb-0.5">iSabi</div>
           <h1 className="text-xl font-bold text-gray-900">OPay Integration Simulator</h1>
         </div>
         <Link href="/" className="text-sm font-semibold text-gray-600 hover:text-gray-900">← Home</Link>
@@ -113,7 +113,7 @@ export default function OPaySimulatorPage() {
           </div>
           <p className="mt-3 text-xs text-gray-500">
             In production: OPay sends a signed webhook to <code className="bg-gray-100 px-1">/api/opay/webhook</code> after payment.
-            Handijob verifies the signature, updates the booking, and notifies the artisan.
+            iSabi verifies the signature, updates the booking, and notifies the artisan.
           </p>
         </section>
 
@@ -255,8 +255,8 @@ function EscrowLedger() {
   const [db, setDb] = useState(() => (typeof window !== "undefined" ? loadDb() : null));
   useEffect(() => {
     const refresh = () => setDb(loadDb());
-    window.addEventListener("handijob-db-updated", refresh);
-    return () => window.removeEventListener("handijob-db-updated", refresh);
+    window.addEventListener("isabi-db-updated", refresh);
+    return () => window.removeEventListener("isabi-db-updated", refresh);
   }, []);
   if (!db) return null;
 

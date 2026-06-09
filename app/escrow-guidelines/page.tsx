@@ -5,7 +5,7 @@ const STEPS = [
   { n: "02", title: "Artisan accepts and starts work", body: "The artisan accepts the job, arrives at your location, and begins work. You can track status in real time from your dashboard." },
   { n: "03", title: "Artisan marks job complete", body: "When the work is done, the artisan marks the job as complete. You receive a notification to review and confirm." },
   { n: "04", title: "Client confirms or disputes", body: "If you are satisfied, release the payment. If there's an issue, open a dispute. You have 48 hours to act before the escrow auto-releases." },
-  { n: "05", title: "Artisan receives payment", body: "On release, the artisan's fee (minus 10% commission) lands in their Handijob wallet. They can request a payout at any time." },
+  { n: "05", title: "Artisan receives payment", body: "On release, the artisan's fee (minus 10% commission) lands in their iSabi wallet. They can request a payout at any time." },
 ];
 
 const FEES = [

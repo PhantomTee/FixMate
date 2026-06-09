@@ -5,14 +5,14 @@
  *
  * Env vars required:
  *   TERMII_API_KEY   – from Termii dashboard
- *   TERMII_SENDER_ID – approved sender (e.g. "Handijob")
+ *   TERMII_SENDER_ID – approved sender (e.g. "iSabi")
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 
 const TERMII_API_KEY   = process.env.TERMII_API_KEY!;
-const TERMII_SENDER_ID = process.env.TERMII_SENDER_ID ?? "Handijob";
+const TERMII_SENDER_ID = process.env.TERMII_SENDER_ID ?? "iSabi";
 const BASE             = "https://v3.api.termii.com";
 
 export async function POST(req: NextRequest) {
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
         pin_time_to_live:  10,
         pin_length:        6,
         pin_placeholder:   "< 1234 >",
-        message_text:      "Your Handijob verification code is < 1234 >. Valid for 10 minutes.",
+        message_text:      "Your iSabi verification code is < 1234 >. Valid for 10 minutes.",
       }),
     });
 
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const phone    = data.msisdn ?? body.phone;
 
     // Deterministic fake email so we can issue magic-link tokens (phone-only users have no email)
-    const deterministicEmail = `p${phone.replace(/\D/g, "")}@handijob.ng`;
+    const deterministicEmail = `p${phone.replace(/\D/g, "")}@isabi.ng`;
 
     // Find existing user or create one
     const { data: existingUsers } = await service.auth.admin.listUsers();

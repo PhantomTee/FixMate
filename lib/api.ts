@@ -17,7 +17,7 @@ import type {
   Booking,
   DiagnosisRecord,
   EscrowAction,
-  HandijobDB,
+  iSabiDB,
   InventoryItem,
   JobRequest,
   Message,
@@ -452,7 +452,7 @@ export async function addInventoryItem(params: {
 
 /**
  * Subscribe to booking status changes.
- * Replace the demo "handijob-db-updated" event with this.
+ * Replace the demo "isabi-db-updated" event with this.
  */
 export function subscribeBooking(
   bookingId: string,
@@ -471,11 +471,11 @@ export function subscribeBooking(
 // ── Full DB snapshot (for pages still using loadDb() pattern) ─
 
 /**
- * Returns a HandijobDB-shaped snapshot for the current user.
+ * Returns a iSabiDB-shaped snapshot for the current user.
  * Use this to migrate pages with minimal diff; refactor to
  * individual queries as you go.
  */
-export async function loadUserDb(): Promise<HandijobDB | null> {
+export async function loadUserDb(): Promise<iSabiDB | null> {
   const supabase = db();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -525,7 +525,7 @@ export async function loadUserDb(): Promise<HandijobDB | null> {
       actor:       r.actor as string,
       note:        r.note as string,
       createdAt:   r.created_at as string,
-    })) as HandijobDB["escrow_transactions"],
+    })) as iSabiDB["escrow_transactions"],
     messages:             (messages ?? []).map((r) => toMessage(r as Record<string, unknown>)),
     reviews:              (reviews ?? []).map((r) => toReview(r as Record<string, unknown>)),
     disputes:             (disputes ?? []).map((r) => ({
@@ -537,7 +537,7 @@ export async function loadUserDb(): Promise<HandijobDB | null> {
       reason:     r.reason as string,
       status:     r.status as string,
       createdAt:  r.created_at as string,
-    })) as HandijobDB["disputes"],
+    })) as iSabiDB["disputes"],
     inventory_items:      (inventory ?? []).map((r) => toInventoryItem(r as Record<string, unknown>)),
     platform_fee_balance: (config as Record<string, unknown>)?.fee_balance as number ?? 0,
   };

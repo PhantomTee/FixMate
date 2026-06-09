@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     },
     body: JSON.stringify({
       amount:    amountKobo,
-      email:     `${customer?.phone ?? user.id}@handijob.ng`, // phone-as-email fallback
+      email:     `${customer?.phone ?? user.id}@isabi.ng`, // phone-as-email fallback
       reference: `HJ-${bookingId.slice(0, 8)}-${Date.now()}`,
       metadata:  { booking_id: bookingId, user_id: user.id },
       callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/booking?bookingId=${bookingId}`,

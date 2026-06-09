@@ -97,7 +97,7 @@ export default function ArtisanProfilePage() {
   const firstName = a.fullName.split(" ")[0];
 
   const whatsappUrl = `https://wa.me/${a.phone.replace(/\D/g, "")}?text=${encodeURIComponent(
-    `Hi ${firstName}, I found your profile on Handijob and would like to discuss a job.`
+    `Hi ${firstName}, I found your profile on iSabi and would like to discuss a job.`
   )}`;
 
   return (

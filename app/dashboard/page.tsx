@@ -9,7 +9,7 @@ import {
   saveReview,
   subscribeBooking,
 } from "@/lib/api";
-import { Booking, DiagnosisRecord, EscrowTransaction, HandijobDB, JobRequest } from "@/lib/types";
+import { Booking, DiagnosisRecord, EscrowTransaction, iSabiDB, JobRequest } from "@/lib/types";
 
 const naira = (v: number) => `₦${v.toLocaleString()}`;
 
@@ -41,7 +41,7 @@ function greeting() {
 }
 
 export default function DashboardPage() {
-  const [db, setDb] = useState<HandijobDB | null>(null);
+  const [db, setDb] = useState<iSabiDB | null>(null);
   const [loading, setLoading] = useState(true);
   const [reviewText, setReviewText] = useState("");
   const [disputeOpen, setDisputeOpen] = useState(false);
@@ -157,7 +157,7 @@ export default function DashboardPage() {
           <Link href="/" className="flex h-8 w-8 items-center justify-center bg-green-600 text-sm font-black text-white rounded-lg shrink-0">
             H
           </Link>
-          <span className="text-sm font-black text-gray-950">Handijob</span>
+          <span className="text-sm font-black text-gray-950">iSabi</span>
         </div>
         <Link
           href="/report"

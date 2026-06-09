@@ -280,7 +280,7 @@ export default function HomePage() {
       <section id="how-it-works" className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-12">
           <h2 className="text-[clamp(1.5rem,4vw,2.5rem)] font-black text-gray-950 tracking-tight">
-            How Handijob works
+            How iSabi works
           </h2>
           <Link href="/report" className="text-sm font-black text-green-700 hover:text-green-800 underline underline-offset-4 whitespace-nowrap">
             Post your first job →
@@ -371,7 +371,7 @@ export default function HomePage() {
           <div>
             <span className="text-[10px] font-black uppercase tracking-widest text-green-400 mb-4 block">For skilled tradespeople</span>
             <h2 className="text-[clamp(1.8rem,5vw,3rem)] font-black text-white leading-tight tracking-tight mb-4">
-              Grow your repair business with Handijob.
+              Grow your repair business with iSabi.
             </h2>
             <p className="text-gray-400 leading-relaxed max-w-md">
               Register your trade, build a verified profile, receive job requests, and get paid securely via OPay escrow.
@@ -393,8 +393,8 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between gap-10">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <span className="flex h-8 w-8 items-center justify-center bg-green-700 text-sm font-black text-white rounded-lg">H</span>
-              <span className="text-base font-black text-gray-950">Handijob</span>
+              <span className="flex h-8 w-8 items-center justify-center bg-green-700 text-sm font-black text-white rounded-lg">S</span>
+              <span className="text-base font-black text-gray-950">iSabi</span>
             </div>
             <p className="text-sm text-gray-400 max-w-[220px] leading-relaxed">
               Nigeria's marketplace for trusted home repair professionals.
@@ -428,7 +428,7 @@ export default function HomePage() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto mt-10 pt-6 border-t border-gray-100 flex flex-col sm:flex-row justify-between gap-2 text-xs text-gray-300">
-          <span>© {new Date().getFullYear()} Handijob. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} iSabi. All rights reserved.</span>
           <span>Secured by OPay Escrow · AI-powered by Google Gemini</span>
         </div>
       </footer>

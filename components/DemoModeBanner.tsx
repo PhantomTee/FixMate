@@ -14,8 +14,8 @@ export default function DemoModeBanner() {
   useEffect(() => {
     setRole(getDemoRole());
     const handler = (e: Event) => setRole((e as CustomEvent<DemoRole>).detail);
-    window.addEventListener("handijob-role-changed", handler);
-    return () => window.removeEventListener("handijob-role-changed", handler);
+    window.addEventListener("isabi-role-changed", handler);
+    return () => window.removeEventListener("isabi-role-changed", handler);
   }, []);
 
   const handleSwitch = (r: DemoRole) => {

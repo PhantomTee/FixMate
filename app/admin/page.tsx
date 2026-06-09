@@ -300,7 +300,7 @@ export default function AdminPage() {
           </Link>
           <div>
             <p className="text-sm font-black text-gray-950">Admin Console</p>
-            <p className="text-xs text-gray-400 font-semibold">Handijob</p>
+            <p className="text-xs text-gray-400 font-semibold">iSabi</p>
           </div>
         </div>
         <Link href="/" className="text-xs font-black text-gray-400 hover:text-gray-950 transition-colors">

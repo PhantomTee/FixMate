@@ -15,7 +15,7 @@ const SECTIONS = [
   },
   {
     title: "Payments",
-    body: "Payments are processed via Paystack. Handijob does not store your card details — all payment data is handled by Paystack's PCI-compliant infrastructure. Escrow balances are managed in our Supabase database with full audit trails.",
+    body: "Payments are processed via Paystack. iSabi does not store your card details — all payment data is handled by Paystack's PCI-compliant infrastructure. Escrow balances are managed in our Supabase database with full audit trails.",
   },
   {
     title: "Data retention",
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12 space-y-8">
         <p className="text-gray-600 leading-relaxed">
-          Handijob (&quot;we&quot;, &quot;our&quot;, &quot;the platform&quot;) is committed to protecting your privacy. This policy explains what data we collect, why we collect it, and how we use it.
+          iSabi (&quot;we&quot;, &quot;our&quot;, &quot;the platform&quot;) is committed to protecting your privacy. This policy explains what data we collect, why we collect it, and how we use it.
         </p>
         {SECTIONS.map((s) => (
           <div key={s.title}>

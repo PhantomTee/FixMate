@@ -8,7 +8,7 @@ import {
   Dispute,
   EscrowAction,
   EscrowTransaction,
-  HandijobDB,
+  iSabiDB,
   InventoryItem,
   JobDiagnosis,
   JobRequest,
@@ -17,7 +17,7 @@ import {
   User,
 } from "@/lib/types";
 
-const STORAGE_KEY = "handijob_mvp_db_v3";
+const STORAGE_KEY = "isabi_mvp_db_v3";
 const now = () => new Date().toISOString();
 const uid = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const money = (value: number) => Math.max(0, Math.round(value));
@@ -35,7 +35,7 @@ export const LAGOS_AREAS = [
   "Mushin", "Festac", "Ikorodu", "Oshodi", "Berger",
 ];
 
-export function seedDb(): HandijobDB {
+export function seedDb(): iSabiDB {
   const createdAt = now();
   const users: User[] = [
     {
@@ -183,7 +183,7 @@ export function seedDb(): HandijobDB {
   };
 }
 
-export function loadDb(): HandijobDB {
+export function loadDb(): iSabiDB {
   if (typeof window === "undefined") return seedDb();
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (!raw) {
@@ -192,17 +192,17 @@ export function loadDb(): HandijobDB {
     return seeded;
   }
   try {
-    const parsed = JSON.parse(raw) as HandijobDB;
+    const parsed = JSON.parse(raw) as iSabiDB;
     return parsed.users?.length && parsed.artisans?.length ? parsed : seedDb();
   } catch {
     return seedDb();
   }
 }
 
-export function saveDb(db: HandijobDB) {
+export function saveDb(db: iSabiDB) {
   if (typeof window !== "undefined") {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
-    window.dispatchEvent(new Event("handijob-db-updated"));
+    window.dispatchEvent(new Event("isabi-db-updated"));
   }
 }
 
@@ -247,7 +247,7 @@ export function createJobWithDiagnosis(input: {
 }
 
 // Improved artisan matching — category + verified + trust + location + emergency + jobs
-export function matchArtisans(db: HandijobDB, category: ArtisanCategory, location: string) {
+export function matchArtisans(db: iSabiDB, category: ArtisanCategory, location: string) {
   const locationText = location.toLowerCase().split(",")[0].trim();
   return [...db.artisans]
     .filter((a) => a.applicationStatus === "approved")
@@ -312,7 +312,7 @@ export function createBooking(jobId: string, artisanId: string, quoteAmount: num
 }
 
 function addTx(
-  db: HandijobDB,
+  db: iSabiDB,
   booking: Booking,
   action: EscrowAction,
   amount: number,

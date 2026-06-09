@@ -3,11 +3,11 @@ import Link from "next/link";
 const SECTIONS = [
   {
     title: "1. Acceptance",
-    body: "By using Handijob you agree to these terms. If you do not agree, please do not use the platform. These terms apply to all users — clients, artisans, and visitors.",
+    body: "By using iSabi you agree to these terms. If you do not agree, please do not use the platform. These terms apply to all users — clients, artisans, and visitors.",
   },
   {
     title: "2. The platform",
-    body: "Handijob is a marketplace that connects clients with skilled tradespeople (artisans) for home repair and maintenance services in Nigeria. We are not a party to the service contract between client and artisan — we provide the matching, payment, and dispute infrastructure.",
+    body: "iSabi is a marketplace that connects clients with skilled tradespeople (artisans) for home repair and maintenance services in Nigeria. We are not a party to the service contract between client and artisan — we provide the matching, payment, and dispute infrastructure.",
   },
   {
     title: "3. Accounts",
@@ -19,11 +19,11 @@ const SECTIONS = [
   },
   {
     title: "5. Escrow and payments",
-    body: "All payments are held in escrow by Handijob until the client confirms job completion. Clients pay a 2% service fee. Artisans pay a 10% commission on released payments. Escrow funds are not released until the client confirms or a dispute is resolved in the artisan's favour.",
+    body: "All payments are held in escrow by iSabi until the client confirms job completion. Clients pay a 2% service fee. Artisans pay a 10% commission on released payments. Escrow funds are not released until the client confirms or a dispute is resolved in the artisan's favour.",
   },
   {
     title: "6. Disputes",
-    body: "Either party may open a dispute through the platform. Handijob will review evidence submitted by both parties and make a binding decision within 3 business days. Our decision on the allocation of escrow funds is final.",
+    body: "Either party may open a dispute through the platform. iSabi will review evidence submitted by both parties and make a binding decision within 3 business days. Our decision on the allocation of escrow funds is final.",
   },
   {
     title: "7. Prohibited conduct",
@@ -31,7 +31,7 @@ const SECTIONS = [
   },
   {
     title: "8. Liability",
-    body: "Handijob is not liable for the quality of work performed by artisans. Our liability in any dispute is limited to the escrow funds held for that specific booking. We are not liable for injury, property damage, or consequential losses arising from a booking.",
+    body: "iSabi is not liable for the quality of work performed by artisans. Our liability in any dispute is limited to the escrow funds held for that specific booking. We are not liable for injury, property damage, or consequential losses arising from a booking.",
   },
   {
     title: "9. Termination",
@@ -55,7 +55,7 @@ export default function TermsPage() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12 space-y-8">
         <p className="text-gray-600 leading-relaxed">
-          Please read these terms carefully before using Handijob. By accessing or using the platform you agree to be bound by them.
+          Please read these terms carefully before using iSabi. By accessing or using the platform you agree to be bound by them.
         </p>
         {SECTIONS.map((s) => (
           <div key={s.title}>

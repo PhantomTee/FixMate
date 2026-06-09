@@ -78,7 +78,7 @@ export default function ProfilePage() {
           <span className="flex h-9 w-9 items-center justify-center bg-green-600 text-sm font-black text-white rounded-lg">
             H
           </span>
-          <span className="text-lg font-black text-gray-950">Handijob</span>
+          <span className="text-lg font-black text-gray-950">iSabi</span>
         </Link>
 
         {/* Card */}

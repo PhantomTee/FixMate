@@ -30,7 +30,7 @@ const FAQS = [
     a: "We are currently active in Lagos, Abuja, Port Harcourt, Ibadan, and Kano. We're expanding — artisans in other cities can register and be first approved when we launch there.",
   },
   {
-    q: "Is there a fee for using Handijob?",
+    q: "Is there a fee for using iSabi?",
     a: "Clients pay a small 2% service fee on each booking. Artisans are charged a 10% commission only on completed, released jobs — you pay nothing until you earn.",
   },
 ];
@@ -41,7 +41,7 @@ export default function HelpPage() {
       <div className="border-b border-gray-100 bg-gray-50">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
           <h1 className="text-[clamp(1.8rem,5vw,3rem)] font-black text-gray-950 tracking-tight mb-2">Help Centre</h1>
-          <p className="text-gray-500">Everything you need to know about Handijob.</p>
+          <p className="text-gray-500">Everything you need to know about iSabi.</p>
         </div>
       </div>
 
@@ -66,7 +66,7 @@ export default function HelpPage() {
             <p className="text-sm text-gray-400">Chat with us on WhatsApp — we typically reply within the hour.</p>
           </div>
           <Link
-            href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "2348000000000"}?text=Hi!%20I%20need%20help%20with%20Handijob.`}
+            href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "2348000000000"}?text=Hi!%20I%20need%20help%20with%20iSabi.`}
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0 bg-green-600 text-white px-6 py-3 text-sm font-black rounded-xl hover:bg-green-500 transition-colors"
