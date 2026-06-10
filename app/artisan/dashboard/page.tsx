@@ -59,6 +59,7 @@ interface PageData {
 }
 
 export default function ArtisanDashboardPage() {
+  const router = useRouter();
   const [data, setData] = useState<PageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
