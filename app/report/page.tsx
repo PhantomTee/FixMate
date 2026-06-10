@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { diagnoseIssue } from "@/app/actions";
-import LocationAutocomplete from "@/components/LocationAutocomplete";
+import LocationInput from "@/components/LocationInput";
 import { createBooking, createJob } from "@/lib/api";
 import { Artisan, DiagnosisRecord, JobRequest, SupportedLanguage } from "@/lib/types";
 import { useiSabiStore } from "@/lib/store";
@@ -154,8 +154,13 @@ export default function ReportPage() {
 
             {/* Location */}
             <div>
-              <label className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2 block">Your Location</label>
-              <LocationAutocomplete defaultValue={location} onPlaceSelect={(p) => setLocation(p.formatted_address || p.name)} />
+              <LocationInput
+                label="Your Location"
+                value={location}
+                onChange={setLocation}
+                placeholder="e.g. Yaba, Lagos"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900"
+              />
             </div>
 
             {/* Language */}

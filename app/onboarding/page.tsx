@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import LocationInput from "@/components/LocationInput";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -95,16 +96,11 @@ export default function OnboardingPage() {
 
           {/* Location */}
           <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
-              Your city / area
-            </label>
-            <input
-              type="text"
+            <LocationInput
+              label="Your city / area"
               value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && save()}
+              onChange={setLocation}
               placeholder="e.g. Yaba, Lagos"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900"
             />
             <p className="text-[10px] text-gray-400 mt-1">Used to match you with nearby artisans</p>
           </div>
