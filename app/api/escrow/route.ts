@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSideClient, createServiceClient } from "@/lib/supabase";
 import { sendNotification } from "@/lib/notify";
+import { refundPaystackTransaction } from "@/lib/paystack";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
   // Validate that this user is a party to the booking
   const { data: booking } = await serviceClient
     .from("bookings")
-    .select("user_id, artisan_id, quote_amount, job_id")
+    .select("user_id, artisan_id, quote_amount, job_id, paystack_reference, escrow_status, total_charge")
     .eq("id", bookingId)
     .single();
 
@@ -69,6 +70,17 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  // Paystack refund when artisan declines a funded booking
+  if (
+    action === "artisan_decline" &&
+    (booking as { escrow_status: string }).escrow_status === "funded" &&
+    (booking as { paystack_reference?: string }).paystack_reference
+  ) {
+    const ref      = (booking as { paystack_reference: string }).paystack_reference;
+    const kobo     = ((booking as { total_charge: number }).total_charge ?? 0) * 100;
+    void refundPaystackTransaction(ref, kobo);
   }
 
   // Fire-and-forget notifications + system chat message
