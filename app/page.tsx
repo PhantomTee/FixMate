@@ -5,16 +5,11 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { Artisan } from "@/lib/types";
 
-// ── HERO ───────────────────────────────────────────────────────────────
-// TODO: Replace with photos of Black/Nigerian tradespeople. Recommended sources:
-//   unsplash.com/@omotayotajudeen, unsplash.com/s/photos/nigeria-artisan,
-//   pexels.com/search/nigeria%20repair
 const HERO_IMAGES = [
-  "https://images.unsplash.com/photo-1581093577421-8a2b3a03e08c?w=1920&q=80", // technician at work
-  "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1920&q=80", // construction worker
-  "https://images.unsplash.com/photo-1621905252472-943afaa20e20?w=1920&q=80", // AC/electrical repair
-  "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=1920&q=80",    // construction site
-  "https://images.unsplash.com/photo-1615816065878-5b7c20648e3b?w=1920&q=80", // plumbing pipes
+  "https://i.ibb.co/DgwqHdWt/93661.jpg",
+  "https://i.ibb.co/twvQ2ThD/86494.jpg",
+  "https://i.ibb.co/Wp6N4fmj/18997.jpg",
+  "https://i.ibb.co/bMzhz4qP/139913.jpg",
 ];
 
 const HERO_CONTENT = [
@@ -77,18 +72,15 @@ const STATS = [
   },
 ];
 
-// ── CATEGORIES ─────────────────────────────────────────────────────────
-// TODO: Source photos directly from Nigerian/African photographers on Unsplash
-//   for authentic Black representation — search unsplash.com/s/photos/nigeria
 const CATEGORIES = [
-  { label: "Plumbing",   slug: "Plumber",         img: "https://images.unsplash.com/photo-1607400201515-c2c41c08aeba?w=600&q=80" }, // plumber at work
-  { label: "Electrical", slug: "Electrician",      img: "https://images.unsplash.com/photo-1621905251918-2f4a20a44eb9?w=600&q=80" }, // electrician wiring
-  { label: "AC Repair",  slug: "AC Repair",        img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80" },    // AC unit
-  { label: "Generator",  slug: "Generator Repair", img: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&q=80" }, // power/electrical equipment
-  { label: "Painting",   slug: "Painter",          img: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=600&q=80" }, // house painter
-  { label: "Carpentry",  slug: "Carpenter",        img: "https://images.unsplash.com/photo-1574362848149-11496d93a7c7?w=600&q=80" }, // carpenter with wood
-  { label: "Cleaning",   slug: "Cleaning",         img: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600&q=80" }, // professional cleaner
-  { label: "Mechanics",  slug: "Mechanic",         img: "https://images.unsplash.com/photo-1530046339160-ce3e530c7d2f?w=600&q=80" }, // car mechanic
+  { label: "Plumbing",   slug: "Plumber",         img: "https://i.ibb.co/hJ7x66Tt/139737.jpg" },
+  { label: "Electrical", slug: "Electrician",      img: "https://i.ibb.co/8gjBQPQW/depositphotos-328265494-stock-photo-african-american-electrician-performing-wiring.webp" },
+  { label: "AC Repair",  slug: "AC Repair",        img: "https://i.ibb.co/0yFxL87d/92713.jpg" },
+  { label: "Generator",  slug: "Generator Repair", img: "https://i.ibb.co/spdBR6ZZ/0bee7ac4-0c24-42eb-ba3a-e8aa4dfc9e10.png" },
+  { label: "Painting",   slug: "Painter",          img: "https://i.ibb.co/s9x3CFNP/63282.jpg" },
+  { label: "Carpentry",  slug: "Carpenter",        img: "https://i.ibb.co/Tqqm2CQZ/ad96daf5-c27a-4f46-8d77-d4a55ae27ffc.png" },
+  { label: "Cleaning",   slug: "Cleaning",         img: "https://i.ibb.co/Z6H6f3PN/7ae539d6-2ae8-475f-a904-b27992bded31.png" },
+  { label: "Mechanics",  slug: "Mechanic",         img: "https://i.ibb.co/TqLGt4S2/73045.jpg" },
 ];
 
 const HOW_IT_WORKS = [
