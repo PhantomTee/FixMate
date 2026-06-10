@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import type { SetupItem } from "@/app/api/notifications/route";
 
 const NAV_LINKS = [
   { label: "Browse Artisans", href: "/browse" },
@@ -13,43 +14,29 @@ const NAV_LINKS = [
 
 type AuthUser = { name: string; isArtisan: boolean } | null;
 
-type Notification = { id: string; title: string; body: string; time: string; read: boolean };
+type Notification = {
+  id:    string;
+  title: string;
+  body:  string;
+  time:  string;
+  read:  boolean;
+};
 
-function NotificationList({ onClose }: { onClose: () => void }) {
-  const [items, setItems]   = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+type NotifState = {
+  notifications: Notification[];
+  setupItems:    SetupItem[];
+  setupComplete: boolean;
+  unread:        number;
+};
 
-  useEffect(() => {
-    fetch("/api/notifications")
-      .then((r) => r.json())
-      .then((d) => setItems(Array.isArray(d.notifications) ? d.notifications : []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+const EMPTY_NOTIF: NotifState = {
+  notifications: [],
+  setupItems:    [],
+  setupComplete: true,
+  unread:        0,
+};
 
-  if (loading) {
-    return (
-      <div className="px-4 py-6 flex justify-center">
-        <span className="w-4 h-4 border-2 border-gray-200 border-t-green-600 rounded-full animate-spin" />
-      </div>
-    );
-  }
-  if (!items.length) {
-    return <p className="px-4 py-6 text-xs text-gray-400 text-center font-semibold">No recent activity.</p>;
-  }
-  return (
-    <ul className="max-h-72 overflow-y-auto divide-y divide-gray-50">
-      {items.map((n) => (
-        <li key={n.id} className={`px-4 py-3 ${n.read ? "opacity-60" : ""}`}>
-          <p className="text-xs font-black text-gray-950 leading-snug">{n.title}</p>
-          <p className="text-xs text-gray-500 mt-0.5 leading-snug">{n.body}</p>
-          <p className="text-[10px] text-gray-300 mt-1">{n.time}</p>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
+// ── Bell icon ────────────────────────────────────────────────────────────────
 function BellIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -59,12 +46,110 @@ function BellIcon() {
   );
 }
 
+// ── Notification dropdown ─────────────────────────────────────────────────────
+function NotificationList({
+  data,
+  onClose,
+}: {
+  data:    NotifState;
+  onClose: () => void;
+}) {
+  const { notifications, setupItems, setupComplete } = data;
+
+  return (
+    <div className="max-h-[420px] overflow-y-auto">
+
+      {/* Setup checklist */}
+      {!setupComplete && (
+        <div className="border-b border-gray-100">
+          <p className="px-4 pt-3 pb-1.5 text-[10px] font-black uppercase tracking-widest text-gray-400">
+            Complete your profile
+          </p>
+          <ul className="pb-2">
+            {setupItems.map((item) => (
+              <li key={item.key}>
+                {item.done ? (
+                  <div className="flex items-start gap-3 px-4 py-2.5">
+                    <span className="mt-0.5 w-5 h-5 rounded-full bg-green-100 border border-green-300 flex items-center justify-center shrink-0">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
+                    <div>
+                      <p className="text-xs font-black text-gray-400 line-through">{item.label}</p>
+                      <p className="text-[10px] text-gray-300">{item.desc}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <Link
+                    href={item.href}
+                    onClick={onClose}
+                    className="flex items-start gap-3 px-4 py-2.5 hover:bg-red-50 transition-colors group"
+                  >
+                    <span className="mt-0.5 w-5 h-5 rounded-full border-2 border-red-300 flex items-center justify-center shrink-0 group-hover:border-red-500 transition-colors">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 group-hover:bg-red-600 transition-colors" />
+                    </span>
+                    <div>
+                      <p className="text-xs font-black text-gray-800 group-hover:text-red-700 transition-colors">{item.label}</p>
+                      <p className="text-[10px] text-gray-400">{item.desc}</p>
+                    </div>
+                    <span className="ml-auto text-gray-300 group-hover:text-red-400 transition-colors text-xs">→</span>
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Setup complete banner */}
+      {setupComplete && setupItems.length > 0 && (
+        <div className="border-b border-gray-100 px-4 py-3 flex items-center gap-2 bg-green-50">
+          <span className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center shrink-0">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </span>
+          <p className="text-xs font-black text-green-700">Profile complete — all set!</p>
+        </div>
+      )}
+
+      {/* Activity notifications */}
+      {notifications.length > 0 && (
+        <>
+          <p className="px-4 pt-3 pb-1 text-[10px] font-black uppercase tracking-widest text-gray-400">
+            Activity
+          </p>
+          <ul className="pb-2 divide-y divide-gray-50">
+            {notifications.map((n) => (
+              <li key={n.id} className={`px-4 py-3 ${n.read ? "opacity-55" : ""}`}>
+                <p className="text-xs font-black text-gray-950 leading-snug">{n.title}</p>
+                <p className="text-xs text-gray-500 mt-0.5 leading-snug">{n.body}</p>
+                <p className="text-[10px] text-gray-300 mt-1">{n.time}</p>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {/* Empty state */}
+      {setupComplete && notifications.length === 0 && (
+        <p className="px-4 py-6 text-xs text-gray-400 text-center font-semibold">
+          No recent activity.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Main Navbar ───────────────────────────────────────────────────────────────
 export default function Navbar() {
-  const [isOpen, setIsOpen]       = useState(false);
-  const [authUser, setAuthUser]   = useState<AuthUser>(null);
+  const [isOpen,    setIsOpen]    = useState(false);
+  const [authUser,  setAuthUser]  = useState<AuthUser>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [bellOpen, setBellOpen]   = useState(false);
-  const [notifCount, setNotifCount] = useState(0);
+  const [bellOpen,  setBellOpen]  = useState(false);
+  const [notif,     setNotif]     = useState<NotifState>(EMPTY_NOTIF);
+
   const pathname = usePathname();
   const router   = useRouter();
   const close    = () => setIsOpen(false);
@@ -76,17 +161,18 @@ export default function Navbar() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setAuthReady(true); return; }
       try {
-        const res  = await fetch("/api/auth/me");
-        const data = await res.json() as { user?: { name?: string } | null; artisan?: unknown };
+        const [meRes, notifRes] = await Promise.all([
+          fetch("/api/auth/me"),
+          fetch("/api/notifications"),
+        ]);
+        const meData = await meRes.json() as { user?: { name?: string } | null; artisan?: unknown };
         setAuthUser({
-          name:      data.user?.name ?? "You",
-          isArtisan: !!data.artisan,
+          name:      meData.user?.name ?? "You",
+          isArtisan: !!meData.artisan,
         });
-        // Derive a notification count from recent activity
-        const notifRes = await fetch("/api/notifications");
         if (notifRes.ok) {
-          const notifData = await notifRes.json() as { unread: number };
-          setNotifCount(notifData.unread ?? 0);
+          const nd = await notifRes.json() as NotifState;
+          setNotif(nd);
         }
       } catch { /* silently skip */ }
       setAuthReady(true);
@@ -95,7 +181,7 @@ export default function Navbar() {
     loadUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") { setAuthUser(null); setAuthReady(true); }
+      if (event === "SIGNED_OUT") { setAuthUser(null); setAuthReady(true); setNotif(EMPTY_NOTIF); }
       else if (event === "SIGNED_IN") loadUser();
     });
 
@@ -106,11 +192,14 @@ export default function Navbar() {
     const supabase = createClient();
     await supabase.auth.signOut();
     setAuthUser(null);
+    setNotif(EMPTY_NOTIF);
     close();
     router.push("/");
   };
 
-  const firstName = authUser?.name?.split(" ")[0] ?? "";
+  // Dot: red+pulsing when setup incomplete; green when setup done + unread activity
+  const showDot  = !notif.setupComplete || notif.unread > 0;
+  const dotIsRed = !notif.setupComplete;
 
   return (
     <>
@@ -149,24 +238,43 @@ export default function Navbar() {
                       aria-label="Notifications"
                     >
                       <BellIcon />
-                      {notifCount > 0 && (
-                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                      {showDot && (
+                        <span
+                          className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full ${
+                            dotIsRed
+                              ? "bg-red-500 animate-notif-pulse"
+                              : "bg-green-500"
+                          }`}
+                        />
                       )}
                     </button>
+
                     {bellOpen && (
-                      <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
+                      <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
                         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                          <span className="text-xs font-black uppercase tracking-widest text-gray-400">Activity</span>
-                          <button onClick={() => setBellOpen(false)} className="text-gray-300 hover:text-gray-950 text-lg leading-none">×</button>
+                          <span className="text-xs font-black uppercase tracking-widest text-gray-400">
+                            Notifications
+                          </span>
+                          <button
+                            onClick={() => setBellOpen(false)}
+                            className="text-gray-300 hover:text-gray-950 text-lg leading-none"
+                          >
+                            ×
+                          </button>
                         </div>
-                        <NotificationList onClose={() => { setBellOpen(false); setNotifCount(0); }} />
+                        <NotificationList
+                          data={notif}
+                          onClose={() => setBellOpen(false)}
+                        />
                       </div>
                     )}
                   </div>
+
                   {/* Profile link */}
                   <Link href="/profile" className="text-sm font-black text-gray-600 hover:text-gray-950 transition-colors">
                     Me
                   </Link>
+
                   {authUser.isArtisan && (
                     <Link href="/artisan/dashboard" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
                       Artisan Hub
@@ -198,24 +306,54 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile menu button */}
-          <button
-            className="p-2 text-gray-900 hover:bg-gray-50 rounded-lg md:hidden transition-colors"
-            onClick={() => setIsOpen((o) => !o)}
-            aria-label={isOpen ? "Close menu" : "Open menu"}
-          >
-            {isOpen ? (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            ) : (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M4 7h16M4 12h16M4 17h16" />
-              </svg>
+          {/* Mobile: bell + hamburger */}
+          <div className="flex items-center gap-1 md:hidden">
+            {authUser && (
+              <button
+                onClick={() => setBellOpen((o) => !o)}
+                className="relative p-2 text-gray-500 hover:text-gray-950 hover:bg-gray-50 rounded-lg transition-colors"
+                aria-label="Notifications"
+              >
+                <BellIcon />
+                {showDot && (
+                  <span
+                    className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full ${
+                      dotIsRed ? "bg-red-500 animate-notif-pulse" : "bg-green-500"
+                    }`}
+                  />
+                )}
+              </button>
             )}
-          </button>
+            <button
+              className="p-2 text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+              onClick={() => setIsOpen((o) => !o)}
+              aria-label={isOpen ? "Close menu" : "Open menu"}
+            >
+              {isOpen ? (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M4 7h16M4 12h16M4 17h16" />
+                </svg>
+              )}
+            </button>
+          </div>
+
         </div>
       </header>
+
+      {/* Mobile bell dropdown */}
+      {bellOpen && authUser && (
+        <div className="fixed inset-x-4 top-16 z-50 bg-white border border-gray-100 rounded-2xl shadow-xl md:hidden overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-widest text-gray-400">Notifications</span>
+            <button onClick={() => setBellOpen(false)} className="text-gray-300 hover:text-gray-950 text-lg leading-none">×</button>
+          </div>
+          <NotificationList data={notif} onClose={() => setBellOpen(false)} />
+        </div>
+      )}
 
       {/* Mobile drawer */}
       {isOpen && (
@@ -228,10 +366,15 @@ export default function Navbar() {
             {authUser ? (
               <>
                 <Link href="/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50 font-black text-green-700">
-                  My Dashboard — {firstName}
+                  My Dashboard
                 </Link>
-                <Link href="/profile" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">
-                  My Profile
+                <Link href="/profile" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50 flex items-center justify-between">
+                  <span>My Profile</span>
+                  {!notif.setupComplete && (
+                    <span className="text-[10px] font-black text-red-500 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                      Incomplete
+                    </span>
+                  )}
                 </Link>
                 {authUser.isArtisan && (
                   <Link href="/artisan/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">
