@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import LocationAutocomplete from "@/components/LocationAutocomplete";
+import LocationInput from "@/components/LocationInput";
 import { registerArtisan } from "@/lib/api";
 import { ARTISAN_CATEGORIES, ArtisanCategory } from "@/lib/types";
 
@@ -60,8 +60,12 @@ export default function ArtisanRegisterPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Shop / Home Location</label>
-              <LocationAutocomplete defaultValue={location} onPlaceSelect={(place) => setLocation(place.formatted_address || place.name)} />
+              <LocationInput
+                label="Shop / Home Location"
+                value={location}
+                onChange={setLocation}
+                placeholder="e.g. Ikeja, Lagos"
+              />
             </div>
             <Input name="yearsExperience" label="Years of Experience" placeholder="5" type="number" />
             <Input name="verificationId" label="ID / Verification Placeholder" placeholder="NIN, CAC, trade association ID, or upload note" />
