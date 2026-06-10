@@ -168,6 +168,13 @@ export default function AuthPage() {
                 Minimum 8 characters
               </p>
             )}
+            {mode === "signin" && (
+              <div className="text-right mt-1">
+                <Link href="/auth/reset" className="text-[10px] font-black text-gray-400 hover:text-green-600 transition-colors">
+                  Forgot password?
+                </Link>
+              </div>
+            )}
           </div>
 
           <button

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSideClient, createServiceClient } from "@/lib/supabase";
+import { sendNotification } from "@/lib/notify";
 
 async function isAdminUser() {
   const userClient = await createServerSideClient();
@@ -34,5 +35,14 @@ export async function PATCH(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Fire-and-forget approval notification
+  if (body.applicationStatus === "approved" && data?.phone) {
+    void sendNotification(
+      data.phone as string,
+      `Congratulations ${data.full_name ?? ""}! Your iSabi artisan application has been approved. You can now receive jobs on the platform. Visit isabi.ng to get started.`
+    );
+  }
+
   return NextResponse.json(data);
 }

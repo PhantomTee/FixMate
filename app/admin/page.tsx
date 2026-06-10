@@ -244,12 +244,36 @@ export default function AdminPage() {
   }
 
   if (error || !adminData) {
+    const isAccessDenied = error?.toLowerCase().includes("forbidden") || error?.toLowerCase().includes("access") || !adminData;
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
-        <p className="text-gray-500 font-semibold">{error || "Access denied."}</p>
-        <Link href="/auth?next=/admin" className="bg-green-600 text-white px-6 py-3 text-sm font-black rounded-xl hover:bg-green-700">
-          Sign in →
-        </Link>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
+        <div className="w-full max-w-sm text-center space-y-5">
+          <Link href="/" className="flex items-center gap-2 justify-center">
+            <span className="flex h-9 w-9 items-center justify-center bg-green-600 text-sm font-black text-white rounded-lg">S</span>
+            <span className="text-lg font-black text-gray-950">iSabi</span>
+          </Link>
+          <div className="bg-white rounded-2xl border border-gray-100 p-8 space-y-4">
+            <div className="w-14 h-14 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mx-auto text-2xl">
+              {isAccessDenied ? "🚫" : "⚠️"}
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-gray-950">
+                {isAccessDenied ? "Access Denied" : "Something went wrong"}
+              </h1>
+              <p className="text-sm text-gray-400 mt-1 font-semibold">
+                {isAccessDenied
+                  ? "This area is restricted to iSabi administrators."
+                  : error}
+              </p>
+            </div>
+            <Link
+              href={isAccessDenied ? "/" : "/auth?next=/admin"}
+              className="block w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors"
+            >
+              {isAccessDenied ? "← Back to home" : "Sign in →"}
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

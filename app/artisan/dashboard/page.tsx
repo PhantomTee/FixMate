@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import JobChat from "@/components/JobChat";
 import {
   addInventoryItem,
@@ -82,8 +83,12 @@ export default function ArtisanDashboardPage() {
   const [payoutLoading, setPayoutLoading] = useState(false);
 
   const load = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { router.replace("/auth?next=/artisan/dashboard"); return; }
+
     const artisan = await getCurrentArtisan();
-    if (!artisan) { setLoading(false); return; }
+    if (!artisan) { router.replace("/artisan/register"); return; }
 
     const supabase = createClient();
     const [jobs, inventory, { data: reviewsData }] = await Promise.all([
@@ -411,6 +416,24 @@ export default function ArtisanDashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Application status banner */}
+      {artisan.applicationStatus === "pending" && (
+        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-3 flex items-center gap-2.5">
+          <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0 animate-pulse" />
+          <p className="text-xs font-black text-yellow-800">
+            Your application is under review — you'll be notified once it's approved (usually within 48 hrs).
+          </p>
+        </div>
+      )}
+      {artisan.applicationStatus === "rejected" && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center gap-2.5">
+          <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+          <p className="text-xs font-black text-red-700">
+            Your application was not approved. Contact support if you think this is a mistake.
+          </p>
+        </div>
+      )}
 
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
 
