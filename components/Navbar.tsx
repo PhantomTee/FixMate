@@ -275,9 +275,13 @@ export default function Navbar() {
                     Me
                   </Link>
 
-                  {authUser.isArtisan && (
+                  {authUser.isArtisan ? (
                     <Link href="/artisan/dashboard" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
                       Artisan Hub
+                    </Link>
+                  ) : (
+                    <Link href="/artisan/register" className="px-4 py-2 text-sm font-black text-green-700 hover:text-green-800 transition-colors border border-green-200 rounded-lg bg-green-50 hover:bg-green-100">
+                      Become an Artisan
                     </Link>
                   )}
                   <Link href="/dashboard" className="bg-green-700 px-5 py-2 text-sm font-black text-white hover:bg-green-800 transition-colors rounded-lg">
@@ -376,9 +380,13 @@ export default function Navbar() {
                     </span>
                   )}
                 </Link>
-                {authUser.isArtisan && (
+                {authUser.isArtisan ? (
                   <Link href="/artisan/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">
                     Artisan Hub
+                  </Link>
+                ) : (
+                  <Link href="/artisan/register" onClick={close} className="border-b border-green-100 px-6 py-4 bg-green-50 hover:bg-green-100 font-black text-green-700">
+                    Become an Artisan ↗
                   </Link>
                 )}
                 <button
