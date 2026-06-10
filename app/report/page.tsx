@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -28,7 +28,7 @@ export default function ReportPage() {
   const setActiveJobId = useiSabiStore((s) => s.setActiveJobId);
 
   const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("Yaba, Lagos");
+  const [location, setLocation] = useState("");
   const [language, setLanguage] = useState<SupportedLanguage>("English");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -36,6 +36,16 @@ export default function ReportPage() {
   const [job, setJob] = useState<JobRequest | null>(null);
   const [artisans, setArtisans] = useState<Artisan[]>([]);
   const [bookingError, setBookingError] = useState("");
+
+  // Prefill location from user profile
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data: { user?: { location?: string } | null }) => {
+        if (data.user?.location) setLocation(data.user.location);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

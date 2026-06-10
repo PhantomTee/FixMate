@@ -163,9 +163,9 @@ export default function Navbar() {
                       </div>
                     )}
                   </div>
-                  {/* Greeting chip */}
+                  {/* Profile link */}
                   <Link href="/profile" className="text-sm font-black text-gray-600 hover:text-gray-950 transition-colors">
-                    Hi, {firstName}
+                    Me
                   </Link>
                   {authUser.isArtisan && (
                     <Link href="/artisan/dashboard" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
@@ -231,7 +231,7 @@ export default function Navbar() {
                   My Dashboard — {firstName}
                 </Link>
                 <Link href="/profile" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">
-                  Account Settings
+                  My Profile
                 </Link>
                 {authUser.isArtisan && (
                   <Link href="/artisan/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">
