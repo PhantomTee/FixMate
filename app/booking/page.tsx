@@ -48,6 +48,7 @@ export default function BookingPage() {
   const [loading,     setLoading]     = useState(true);
   const [isWorking,   setIsWorking]   = useState(false);
   const [error,       setError]       = useState("");
+  const [paySuccess,  setPaySuccess]  = useState(false);
   const [disputeText, setDisputeText] = useState("");
   const [showDispute, setShowDispute] = useState(false);
   const [activeTab,   setActiveTab]   = useState<Tab>("order");
@@ -174,7 +175,7 @@ export default function BookingPage() {
       const Pop = window.PaystackPop;
       if (!Pop) throw new Error("Payment script not loaded. Please refresh.");
       new Pop().newTransaction({ key: json.publicKey!, email: json.email!, amount: json.amountKobo!, ref: json.reference, currency: "NGN",
-        onSuccess: () => setIsWorking(false),
+        onSuccess: () => { setIsWorking(false); setPaySuccess(true); setTimeout(() => setPaySuccess(false), 5000); },
         onCancel:  () => setIsWorking(false),
       });
     } catch (err) { setError(err instanceof Error ? err.message : "Payment failed."); setIsWorking(false); }
@@ -201,6 +202,17 @@ export default function BookingPage() {
   // ── Shared order panel content ──────────────────────────────────
   const OrderPanel = (
     <div className="space-y-4 px-4 sm:px-6 py-6 max-w-lg mx-auto md:mx-0 md:max-w-none">
+
+      {/* Payment success flash */}
+      {paySuccess && (
+        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-3">
+          <span className="text-green-600 text-xl shrink-0">✓</span>
+          <div>
+            <p className="text-sm font-black text-green-800">Payment received!</p>
+            <p className="text-xs text-green-700 mt-0.5">Funds secured in escrow. Waiting for artisan to accept.</p>
+          </div>
+        </div>
+      )}
 
       {/* Status banner */}
       <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${meta.color}`}>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import LocationInput from "@/components/LocationInput";
+import { createClient } from "@/lib/supabase";
 
 interface UserProfile {
   id: string;
@@ -49,7 +50,9 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
   const [error, setError] = useState("");
 
   // Edit-mode fields
@@ -88,12 +91,20 @@ export default function ProfilePage() {
 
   const cancelEdit = () => {
     setError("");
+    setAvatarError("");
     setEditing(false);
+  };
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/");
   };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setAvatarError("");
     // Instant local preview
     const reader = new FileReader();
     reader.onloadend = () => setEditAvatar(reader.result as string);
@@ -104,10 +115,11 @@ export default function ProfilePage() {
       const form = new FormData();
       form.append("file", file);
       const res = await fetch("/api/auth/avatar", { method: "POST", body: form });
-      const data = await res.json() as { url?: string };
-      if (data.url) setEditAvatar(data.url);
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "Upload failed");
+      setEditAvatar(data.url);
     } catch {
-      // keep local preview, save will persist it
+      setAvatarError("Photo upload failed — your preview is shown but won't be saved.");
     } finally {
       setUploadingAvatar(false);
     }
@@ -144,6 +156,8 @@ export default function ProfilePage() {
           : prev
       );
       setEditing(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -267,6 +281,9 @@ export default function ProfilePage() {
               </>
             )}
           </div>
+          {avatarError && (
+            <p className="text-[10px] text-red-600 font-semibold text-center max-w-[200px]">{avatarError}</p>
+          )}
 
           {/* Name */}
           {editing ? (
@@ -304,7 +321,7 @@ export default function ProfilePage() {
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Phone</p>
               {editing && (
-                <span className="text-[10px] text-gray-400 font-semibold">Cannot be changed</span>
+                <span className="text-[10px] text-gray-400 font-semibold">Contact support to update</span>
               )}
             </div>
             <p className="text-sm font-semibold text-gray-700">{profile?.phone || "—"}</p>
@@ -367,18 +384,34 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Edit CTA (view mode only) */}
+        {/* Edit CTA + Sign Out (view mode only) */}
         {!editing && (
-          <button
-            onClick={startEdit}
-            className="w-full py-3.5 border-2 border-dashed border-gray-200 text-xs font-black text-gray-400 hover:border-green-600 hover:text-green-700 transition-colors rounded-xl flex items-center justify-center gap-2"
-          >
-            <PencilIcon />
-            Edit Profile
-          </button>
+          <>
+            <button
+              onClick={startEdit}
+              className="w-full py-3.5 border-2 border-dashed border-gray-200 text-xs font-black text-gray-400 hover:border-green-600 hover:text-green-700 transition-colors rounded-xl flex items-center justify-center gap-2"
+            >
+              <PencilIcon />
+              Edit Profile
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="w-full py-3 text-xs font-black text-red-500 hover:text-red-700 transition-colors rounded-xl"
+            >
+              Sign Out
+            </button>
+          </>
         )}
 
       </div>
+
+      {/* Saved toast */}
+      {saved && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-950 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 whitespace-nowrap">
+          <CheckIcon size={12} />
+          Changes saved!
+        </div>
+      )}
     </div>
   );
 }

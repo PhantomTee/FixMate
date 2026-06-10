@@ -90,7 +90,6 @@ export default function ArtisanDashboardPage() {
     const artisan = await getCurrentArtisan();
     if (!artisan) { router.replace("/artisan/register"); return; }
 
-    const supabase = createClient();
     const [jobs, inventory, { data: reviewsData }] = await Promise.all([
       getAssignedJobs(artisan.id),
       getInventory(artisan.id),

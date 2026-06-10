@@ -47,6 +47,12 @@ export default function DashboardPage() {
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
   const [disputeLoading, setDisputeLoading] = useState(false);
+  const [toast, setToast] = useState("");
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  };
 
   const refresh = useCallback(async () => {
     const data = await loadUserDb();
@@ -114,6 +120,7 @@ export default function DashboardPage() {
     try {
       const updated = await performEscrowAction(booking.id, action, "");
       setDb((prev) => prev ? { ...prev, bookings: prev.bookings.map((b) => (b.id === updated.id ? updated : b)) } : prev);
+      showToast("Payment released! Job complete.");
     } catch { /* ignore */ }
   };
 
@@ -133,6 +140,7 @@ export default function DashboardPage() {
       });
       setDisputeOpen(false);
       setDisputeReason("");
+      showToast("Dispute submitted — we'll review within 24 hrs.");
       await refresh();
     } catch { /* ignore */ } finally {
       setDisputeLoading(false);
@@ -144,6 +152,7 @@ export default function DashboardPage() {
     try {
       await saveReview(active.id, 5, reviewText.trim());
       setReviewText("");
+      showToast("Review submitted! Thanks for your feedback.");
     } catch { /* ignore */ }
   };
 
@@ -380,6 +389,13 @@ export default function DashboardPage() {
         </details>
 
       </main>
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-950 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl whitespace-nowrap">
+          {toast}
+        </div>
+      )}
 
       {/* Dispute modal */}
       {disputeOpen && (
