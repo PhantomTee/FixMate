@@ -52,21 +52,12 @@ export default function AuthPage() {
     setError("");
     try {
       const supabase = createClient();
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: { data: { name: name.trim() } },
       });
       if (signUpError) throw new Error(signUpError.message);
-
-      if (data.user) {
-        await supabase.from("users").upsert({
-          id:    data.user.id,
-          name:  name.trim(),
-          email: email.trim(),
-        }, { onConflict: "id" });
-      }
-
       router.push(`/onboarding?next=${encodeURIComponent(next)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Account creation failed. Try again.");
