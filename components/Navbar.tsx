@@ -12,7 +12,7 @@ const NAV_LINKS = [
   { label: "How it Works",   href: "/#how-it-works" },
 ];
 
-type AuthUser = { name: string; isArtisan: boolean } | null;
+type AuthUser = { name: string; isArtisan: boolean; isAdmin: boolean } | null;
 
 type Notification = {
   id:    string;
@@ -165,10 +165,11 @@ export default function Navbar() {
           fetch("/api/auth/me"),
           fetch("/api/notifications"),
         ]);
-        const meData = await meRes.json() as { user?: { name?: string } | null; artisan?: unknown };
+        const meData = await meRes.json() as { user?: { name?: string } | null; artisan?: unknown; isAdmin?: boolean };
         setAuthUser({
           name:      meData.user?.name ?? "You",
           isArtisan: !!meData.artisan,
+          isAdmin:   !!meData.isAdmin,
         });
         if (notifRes.ok) {
           const nd = await notifRes.json() as NotifState;
@@ -275,6 +276,12 @@ export default function Navbar() {
                     Me
                   </Link>
 
+                  {authUser.isAdmin && (
+                    <Link href="/admin" className="text-sm font-black text-purple-600 hover:text-purple-800 transition-colors">
+                      Admin
+                    </Link>
+                  )}
+
                   {authUser.isArtisan ? (
                     <Link href="/artisan/dashboard" className="px-4 py-2 text-sm font-black text-gray-700 hover:text-gray-950 transition-colors">
                       Artisan Hub
@@ -372,6 +379,11 @@ export default function Navbar() {
                 <Link href="/dashboard" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50 font-black text-green-700">
                   My Dashboard
                 </Link>
+                {authUser.isAdmin && (
+                  <Link href="/admin" onClick={close} className="border-b border-purple-100 px-6 py-4 bg-purple-50 hover:bg-purple-100 font-black text-purple-700">
+                    Admin Console ↗
+                  </Link>
+                )}
                 <Link href="/profile" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50 flex items-center justify-between">
                   <span>My Profile</span>
                   {!notif.setupComplete && (

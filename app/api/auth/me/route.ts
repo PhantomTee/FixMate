@@ -1,19 +1,21 @@
 import { NextResponse } from "next/server";
 import { createServerSideClient, createServiceClient } from "@/lib/supabase";
+import { isAdminUser } from "@/lib/admin";
 
 export async function GET() {
   const userClient = await createServerSideClient();
   const { data: { user } } = await userClient.auth.getUser();
-  if (!user) return NextResponse.json({ user: null, artisan: null, email: null });
+  if (!user) return NextResponse.json({ user: null, artisan: null, email: null, isAdmin: false });
 
   const service = createServiceClient();
 
-  const [{ data: profile }, { data: artisan }] = await Promise.all([
+  const [{ data: profile }, { data: artisan }, adminFlag] = await Promise.all([
     service.from("users").select("*").eq("id", user.id).single(),
     service.from("artisans").select("*").eq("user_id", user.id).single(),
+    isAdminUser(),
   ]);
 
-  return NextResponse.json({ user: profile, artisan, email: user.email ?? null });
+  return NextResponse.json({ user: profile, artisan, email: user.email ?? null, isAdmin: adminFlag });
 }
 
 export async function POST(req: Request) {
