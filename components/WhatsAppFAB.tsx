@@ -6,15 +6,12 @@ import Link from "next/link";
 // NEXT_PUBLIC_WHATSAPP_JOIN_CODE — e.g. "join whistle-bear" (Twilio sandbox)
 //                                  remove this var once you have a real WA Business number
 
-const number   = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-const joinCode = process.env.NEXT_PUBLIC_WHATSAPP_JOIN_CODE;
+const number   = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER   ?? "14155238886";
+const joinCode = process.env.NEXT_PUBLIC_WHATSAPP_JOIN_CODE ?? "join whistle-bear";
 
-const prefilledText = joinCode
-  ? encodeURIComponent(joinCode)
-  : encodeURIComponent("Hi! I need help with a home repair.");
+const prefilledText = encodeURIComponent(joinCode);
 
 export default function WhatsAppFAB() {
-  if (!number) return null;
 
   const href = `https://wa.me/${number.replace(/\D/g, "")}?text=${prefilledText}`;
 
