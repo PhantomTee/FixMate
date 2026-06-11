@@ -133,7 +133,7 @@ export default function ReportPage() {
               <h1 className="text-[clamp(1.8rem,6vw,2.8rem)] font-black leading-tight tracking-tight text-gray-950 mb-2">
                 What needs fixing?
               </h1>
-              <p className="text-gray-500 text-sm">Describe the issue or upload a photo. Groq AI will triage it instantly.</p>
+              <p className="text-gray-500 text-sm">Describe the issue or upload a photo. iSabi AI will triage it instantly.</p>
             </div>
 
             {/* Photo upload */}
@@ -148,7 +148,7 @@ export default function ReportPage() {
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-2xl">📷</span>
                     <span className="text-sm font-semibold text-gray-500 group-hover:text-green-700">Tap to add a photo</span>
-                    <span className="text-xs text-gray-400">Optional — helps Groq AI diagnose faster</span>
+                    <span className="text-xs text-gray-400">Optional — helps iSabi AI diagnose faster</span>
                   </div>
                 )
               }
@@ -196,7 +196,7 @@ export default function ReportPage() {
               className="w-full py-4 bg-green-700 text-white font-black text-base hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
             >
               {isAnalyzing && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-              {isAnalyzing ? "Analyzing…" : "Analyze with Groq AI →"}
+              {isAnalyzing ? "Analyzing…" : "Analyze with iSabi AI →"}
             </button>
 
             {analyzeError && (
@@ -214,7 +214,7 @@ export default function ReportPage() {
             <div className="border border-gray-200 p-5">
               <div className="flex items-center gap-2 mb-4">
                 <span className="flex h-6 w-6 items-center justify-center bg-green-700 text-[9px] font-black text-white">AI</span>
-                <span className="text-xs font-black uppercase tracking-widest text-gray-400">Groq AI Diagnosis</span>
+                <span className="text-xs font-black uppercase tracking-widest text-gray-400">iSabi AI Diagnosis</span>
                 {diagnosisResult.urgency && (
                   <span className={`ml-auto text-[10px] font-black uppercase px-2 py-0.5 ${URGENCY_COLOR[diagnosisResult.urgency] ?? "bg-gray-100 text-gray-600"}`}>
                     {diagnosisResult.urgency}
