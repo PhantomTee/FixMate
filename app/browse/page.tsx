@@ -198,7 +198,7 @@ function ArtisanCard({ artisan: a }: { artisan: Artisan }) {
           />
         ) : (
           <div className="w-12 h-12 border border-gray-200 bg-gray-100 flex items-center justify-center shrink-0">
-            <span className="text-lg font-black text-gray-400">{a.fullName.charAt(0)}</span>
+            <span className="text-lg font-black text-gray-400">{( a.fullName ?? "?" ).charAt(0)}</span>
           </div>
         )}
         <div className="min-w-0">

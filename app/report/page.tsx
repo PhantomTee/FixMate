@@ -282,7 +282,7 @@ export default function ReportPage() {
                             <Image unoptimized src={artisan.avatar} alt={artisan.fullName} width={48} height={48} className="object-cover border border-gray-200" />
                           ) : (
                             <div className="w-12 h-12 border border-gray-200 bg-gray-100 flex items-center justify-center">
-                              <span className="text-lg font-black text-gray-400">{artisan.fullName.charAt(0)}</span>
+                              <span className="text-lg font-black text-gray-400">{( artisan.fullName ?? "?" ).charAt(0)}</span>
                             </div>
                           )}
                           {artisan.isVerified && (
