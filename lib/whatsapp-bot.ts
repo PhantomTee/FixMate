@@ -218,6 +218,13 @@ export async function handleBotMessage(
       }
 
       // ── Awaiting location (after diagnosis) ───────────────────────────────
+      // ── Mid-diagnosis recovery (server restarted between AI call) ──────
+      case "diagnosing": {
+        await setSession(db, phone, "idle", {});
+        await send(phone, "Something interrupted the analysis. Please describe your issue again and I'll retry.");
+        break;
+      }
+
       case "awaiting_location": {
         const location = msg;
 
