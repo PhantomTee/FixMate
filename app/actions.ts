@@ -1,6 +1,6 @@
 "use server";
 
-import { GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
 import {
   ARTISAN_CATEGORIES,
   ArtisanBrief,
@@ -14,32 +14,33 @@ import {
 
 const categories = ARTISAN_CATEGORIES.join(", ");
 
-// ── Gemini key rotation ───────────────────────────────────────────────────────
-const GEMINI_KEYS = [
-  process.env.GEMINI_API_KEY_1,
-  process.env.GEMINI_API_KEY_2,
-  process.env.GEMINI_API_KEY_3,
-  // Legacy single-key fallback
-  process.env.GEMINI_API_KEY,
-].filter(Boolean) as string[];
+const GROQ_KEY = process.env.GROQ_API_KEY;
 
-function isQuotaError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /quota|resource_exhausted|429|rate.?limit/i.test(msg);
+const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+const TEXT_MODEL   = "llama-3.3-70b-versatile";
+
+function getGroq() {
+  if (!GROQ_KEY) throw new Error("GROQ_API_KEY is not configured");
+  return new Groq({ apiKey: GROQ_KEY });
 }
 
-async function callGemini<T>(fn: (ai: GoogleGenAI) => Promise<T>): Promise<T> {
-  if (GEMINI_KEYS.length === 0) throw new Error("No Gemini API keys configured");
-  let lastErr: unknown;
-  for (const key of GEMINI_KEYS) {
-    try {
-      return await fn(new GoogleGenAI({ apiKey: key }));
-    } catch (err) {
-      lastErr = err;
-      if (!isQuotaError(err)) throw err;
-    }
-  }
-  throw lastErr;
+type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
+async function groqJson<T>(
+  parts: ContentPart[],
+  model: string
+): Promise<T> {
+  const groq = getGroq();
+  const completion = await groq.chat.completions.create({
+    model,
+    messages: [{ role: "user", content: parts }],
+    response_format: { type: "json_object" },
+    temperature: 0.3,
+  });
+  const text = completion.choices[0]?.message?.content ?? "{}";
+  return parseJson(text) as T;
 }
 
 // ── Diagnosis ─────────────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ export async function diagnoseIssue(
   imageBase64: string | null,
   language: SupportedLanguage = "English"
 ): Promise<JobDiagnosis> {
-  if (GEMINI_KEYS.length === 0) return mockDiagnosis(description, language);
+  if (!GROQ_KEY) return mockDiagnosis(description, language);
   try {
     const langNote =
       language !== "English"
@@ -92,25 +93,19 @@ Return this exact JSON shape:
   }
 }`;
 
-    const contents: Array<string | { inlineData: { mimeType: string; data: string } }> = [prompt];
-    const match = imageBase64?.match(/^data:(image\/[a-zA-Z+.-]+);base64,(.+)$/);
-    if (match) {
-      contents.push({ inlineData: { mimeType: match[1], data: match[2] } });
+    const parts: ContentPart[] = [{ type: "text", text: prompt }];
+    if (imageBase64) {
+      // Pass raw data URI directly — Groq vision accepts data URIs
+      parts.push({ type: "image_url", image_url: { url: imageBase64 } });
     }
 
-    const response = await callGemini((ai) =>
-      ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents,
-        config: { responseMimeType: "application/json" },
-      })
-    );
-
-    const diagnosis = validateDiagnosis(parseJson(response.text || "{}"), description);
+    const model = imageBase64 ? VISION_MODEL : TEXT_MODEL;
+    const raw = await groqJson<Record<string, unknown>>(parts, model);
+    const diagnosis = validateDiagnosis(raw, description);
     return { ...diagnosis, language };
   } catch (error) {
-    console.error("Gemini diagnosis failed:", error);
-    return { ...mockDiagnosis(description, language), error: "Gemini unavailable. Showing a safe demo diagnosis." };
+    console.error("Groq diagnosis failed:", error);
+    return { ...mockDiagnosis(description, language), error: "AI unavailable. Showing a safe demo diagnosis." };
   }
 }
 
@@ -119,7 +114,7 @@ export async function generateArtisanBrief(
   diagnosis: JobDiagnosis,
   userLocation: string
 ): Promise<ArtisanBrief> {
-  if (GEMINI_KEYS.length === 0) return mockArtisanBrief(diagnosis);
+  if (!GROQ_KEY) return mockArtisanBrief(diagnosis);
   try {
     const prompt = `You are iSabi AI creating a pre-job brief for a Nigerian artisan.
 Return JSON only. No markdown.
@@ -137,15 +132,10 @@ Return:
   "estimated_price_range": "₦min – ₦max"
 }`;
 
-    const response = await callGemini((ai) =>
-      ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [prompt],
-        config: { responseMimeType: "application/json" },
-      })
+    const raw = await groqJson<Record<string, unknown>>(
+      [{ type: "text", text: prompt }],
+      TEXT_MODEL
     );
-
-    const raw = parseJson(response.text || "{}") as Record<string, unknown>;
     return {
       problem_summary: asText(raw.problem_summary, diagnosis.summary),
       likely_cause: asText(raw.likely_cause, "Requires on-site inspection"),
@@ -166,7 +156,6 @@ export async function checkQuoteFairness(
   const { estimated_min_naira: min, estimated_max_naira: max } = diagnosis;
   const ratio = artisanQuote / max;
 
-  // Fast local verdict for obvious edge cases
   if (ratio <= 0.3) {
     return {
       verdict: "too_low",
@@ -182,7 +171,7 @@ export async function checkQuoteFairness(
     };
   }
 
-  if (GEMINI_KEYS.length === 0) return localQuoteFairness(artisanQuote, diagnosis);
+  if (!GROQ_KEY) return localQuoteFairness(artisanQuote, diagnosis);
   try {
     const prompt = `You are iSabi AI reviewing a Nigerian artisan's quote.
 Return JSON only. No markdown.
@@ -200,15 +189,10 @@ Return:
   "recommended_range": "₦X – ₦Y"
 }`;
 
-    const response = await callGemini((ai) =>
-      ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [prompt],
-        config: { responseMimeType: "application/json" },
-      })
+    const raw = await groqJson<Record<string, unknown>>(
+      [{ type: "text", text: prompt }],
+      TEXT_MODEL
     );
-
-    const raw = parseJson(response.text || "{}") as Record<string, unknown>;
     const validVerdicts = ["fair", "high_but_explainable", "suspiciously_high", "too_low"];
     return {
       verdict: validVerdicts.includes(raw.verdict as string)
@@ -230,7 +214,7 @@ export async function generateDisputeSummary(input: {
   diagnosisTitle: string;
   quoteAmount: number;
 }): Promise<DisputeSummary> {
-  if (GEMINI_KEYS.length === 0) return mockDisputeSummary(input);
+  if (!GROQ_KEY) return mockDisputeSummary(input);
   try {
     const prompt = `You are iSabi AI summarizing a payment dispute for a platform admin.
 Return JSON only. No markdown.
@@ -253,15 +237,10 @@ Return:
   "reasoning": "1-2 sentences explaining the recommendation"
 }`;
 
-    const response = await callGemini((ai) =>
-      ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [prompt],
-        config: { responseMimeType: "application/json" },
-      })
+    const raw = await groqJson<Record<string, unknown>>(
+      [{ type: "text", text: prompt }],
+      TEXT_MODEL
     );
-
-    const raw = parseJson(response.text || "{}") as Record<string, unknown>;
     const validActions = ["refund", "release", "partial_refund", "request_evidence"];
     return {
       user_complaint: asText(raw.user_complaint, input.userComplaint),
