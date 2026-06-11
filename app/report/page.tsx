@@ -133,7 +133,7 @@ export default function ReportPage() {
               <h1 className="text-[clamp(1.8rem,6vw,2.8rem)] font-black leading-tight tracking-tight text-gray-950 mb-2">
                 What needs fixing?
               </h1>
-              <p className="text-gray-500 text-sm">Describe the issue or upload a photo. iSabi AI will triage it instantly.</p>
+              <p className="text-gray-500 text-sm">Describe the issue or upload a photo. iSabi AI will assess it instantly.</p>
             </div>
 
             {/* Photo upload */}
