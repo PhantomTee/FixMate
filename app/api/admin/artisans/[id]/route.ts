@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSideClient, createServiceClient } from "@/lib/supabase";
+import { createServiceClient } from "@/lib/supabase";
 import { sendNotification } from "@/lib/notify";
-
-async function isAdminUser() {
-  const userClient = await createServerSideClient();
-  const { data: { user } } = await userClient.auth.getUser();
-  if (!user) return false;
-  const adminPhones = (process.env.ADMIN_PHONE_WHITELIST ?? "").split(",").map((p) => p.trim()).filter(Boolean);
-  return user.user_metadata?.role === "admin" || adminPhones.includes(user.phone ?? "");
-}
+import { isAdminUser } from "@/lib/admin";
 
 export async function PATCH(
   req: NextRequest,
