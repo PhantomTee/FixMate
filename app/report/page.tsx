@@ -36,6 +36,7 @@ export default function ReportPage() {
   const [job, setJob] = useState<JobRequest | null>(null);
   const [artisans, setArtisans] = useState<Artisan[]>([]);
   const [bookingError, setBookingError] = useState("");
+  const [analyzeError, setAnalyzeError] = useState("");
 
   // Prefill location from user profile
   useEffect(() => {
@@ -58,6 +59,7 @@ export default function ReportPage() {
   const handleAnalyze = async () => {
     if (!description.trim() && !imagePreview) return;
     setIsAnalyzing(true);
+    setAnalyzeError("");
     try {
       const result = await diagnoseIssue(description, imagePreview, language);
 
@@ -83,6 +85,8 @@ export default function ReportPage() {
       const res = await fetch(`/api/artisans?${params}`);
       const matched: Artisan[] = res.ok ? await res.json() : [];
       setArtisans(matched.slice(0, 3));
+    } catch (err) {
+      setAnalyzeError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -202,6 +206,12 @@ export default function ReportPage() {
               {isAnalyzing && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
               {isAnalyzing ? "Analyzing…" : "Analyze with Gemini →"}
             </button>
+
+            {analyzeError && (
+              <div className="bg-red-50 border border-red-100 px-4 py-3 rounded-xl text-xs text-red-700 font-semibold">
+                {analyzeError}
+              </div>
+            )}
           </div>
 
         ) : (
