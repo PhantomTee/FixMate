@@ -88,8 +88,16 @@ export default function ReportPage() {
     }
   };
 
+  const [unverifiedWarning, setUnverifiedWarning] = useState<Artisan | null>(null);
+
   const handleBook = async (artisan: Artisan) => {
     if (!job || !diagnosisResult) return;
+    // If artisan is unverified, show a confirmation warning first
+    if (!artisan.isVerified && !unverifiedWarning) {
+      setUnverifiedWarning(artisan);
+      return;
+    }
+    setUnverifiedWarning(null);
     setBookingError("");
     try {
       const booking = await createBooking({
@@ -262,6 +270,36 @@ export default function ReportPage() {
               </details>
             </div>
 
+            {/* Unverified artisan confirmation modal */}
+            {unverifiedWarning && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">⚠️</span>
+                    <div>
+                      <h3 className="font-black text-gray-950 text-base">Unverified Artisan</h3>
+                      <p className="text-xs text-gray-500 mt-1 font-semibold">
+                        <span className="font-black text-gray-950">{unverifiedWarning.fullName}</span> has not completed identity verification. iSabi cannot confirm who this person is.
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 font-semibold bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    You can still proceed, but we recommend only paying via escrow and meeting in a safe, public location first.
+                  </p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setUnverifiedWarning(null)}
+                      className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-black text-gray-600 hover:border-gray-400 transition-colors">
+                      Cancel
+                    </button>
+                    <button onClick={() => handleBook(unverifiedWarning)}
+                      className="flex-1 py-2.5 bg-gray-950 text-white rounded-xl text-sm font-black hover:bg-gray-800 transition-colors">
+                      Proceed Anyway
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Artisan list */}
             <div>
               <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">Recommended Artisans</h3>
@@ -296,6 +334,9 @@ export default function ReportPage() {
                               <span className={`text-[10px] font-black px-1.5 py-0.5 ${artisan.badge === "iSabi Pro" ? "bg-yellow-100 text-yellow-700" : "bg-blue-50 text-blue-600"}`}>
                                 {artisan.badge === "iSabi Pro" ? "iSabi Pro" : "Verified"}
                               </span>
+                            )}
+                            {!artisan.isVerified && (
+                              <span className="text-[10px] font-black px-1.5 py-0.5 bg-amber-100 text-amber-700">⚠ Unverified</span>
                             )}
                           </div>
                           <p className="text-xs text-gray-500 mt-0.5">{artisan.category} · {artisan.location}</p>

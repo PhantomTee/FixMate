@@ -640,7 +640,7 @@ function OnboardingForm() {
                 <button onClick={runKyc} disabled={kycLoading || !ninCard || !selfie}
                   className="w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
                   {kycLoading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                  {kycLoading ? "Verifying with Gemini AI…" : "Verify Identity"}
+                  {kycLoading ? "Verifying with Groq AI…" : "Verify Identity"}
                 </button>
               )}
 
@@ -700,10 +700,16 @@ function OnboardingForm() {
                 })}
               </div>
 
-              <button onClick={handleArtisanSubmit} disabled={loading || (!kycResult?.verified && !!ninCard && !!selfie && !!kycResult)}
+              {!kycResult?.verified && !kycResult && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 font-semibold">
+                  ⚠️ Skipping verification will tag your profile as <span className="font-black">Unverified</span>. Clients will see a warning when booking you. You can complete KYC later from your dashboard.
+                </div>
+              )}
+
+              <button onClick={handleArtisanSubmit} disabled={loading || (!kycResult?.verified && !!kycResult && !kycResult.verified)}
                 className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
                 {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {loading ? "Submitting application…" : kycResult?.verified ? "Submit Verified Application" : "Submit Application"}
+                {loading ? "Submitting application…" : kycResult?.verified ? "Submit Verified Application" : "Submit Without Verification →"}
               </button>
               <p className="text-[10px] text-gray-400 text-center">
                 Reviewed within 24 hours. You will receive a WhatsApp notification when approved.

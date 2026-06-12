@@ -146,6 +146,11 @@ export default function ArtisanProfilePage() {
                     ✓ VERIFIED
                   </span>
                 )}
+                {!a.isVerified && (
+                  <span className="bg-amber-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full tracking-wider shrink-0">
+                    ⚠ UNVERIFIED
+                  </span>
+                )}
                 {a.emergencyAvailable && (
                   <span className="bg-red-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full tracking-wider shrink-0">
                     EMERGENCY
@@ -260,6 +265,17 @@ export default function ArtisanProfilePage() {
 
           {/* ── Right column: hire CTA ────────────────────────── */}
           <div className="space-y-4">
+
+            {/* Unverified artisan warning */}
+            {!a.isVerified && (
+              <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4">
+                <p className="text-xs font-black text-amber-800 mb-1">⚠ Unverified Artisan</p>
+                <p className="text-xs text-amber-700 font-semibold">
+                  {firstName} has not completed identity verification (KYC). iSabi cannot confirm their identity at this time. Proceed with caution and use escrow payments for protection.
+                </p>
+              </div>
+            )}
+
             <div className="bg-white border border-gray-200 p-5 rounded-2xl hover:border-green-600 transition-all">
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
                 Hire this Artisan

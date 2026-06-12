@@ -28,12 +28,13 @@ export async function GET() {
 
   const service = createServiceClient();
 
-  const [{ data: jobs }, { data: bookings }, { data: profile }] = await Promise.all([
+  const [{ data: jobs }, { data: bookings }, { data: profile }, { data: artisan }] = await Promise.all([
     service.from("job_requests").select("id, status, description, updated_at")
       .eq("user_id", user.id).order("updated_at", { ascending: false }).limit(10),
     service.from("bookings").select("id, escrow_status, updated_at, job_id")
       .eq("user_id", user.id).order("updated_at", { ascending: false }).limit(10),
     service.from("users").select("avatar, location, nin_verified").eq("id", user.id).single(),
+    service.from("artisans").select("id, nin_verified").eq("user_id", user.id).maybeSingle(),
   ]);
 
   // ── Setup checklist ──────────────────────────────────────────────
@@ -113,6 +114,18 @@ export async function GET() {
         day: "numeric", month: "short",
       }),
       read: true,
+    });
+  }
+
+  // KYC pending nudge for artisans who skipped verification
+  const artisanData = artisan as { id?: string; nin_verified?: boolean } | null;
+  if (artisanData && artisanData.nin_verified === false) {
+    notifications.unshift({
+      id:    "kyc-pending",
+      title: "Complete identity verification",
+      body:  "Your profile is tagged Unverified. Complete KYC to build client trust and remove the warning.",
+      time:  "Action required",
+      read:  false,
     });
   }
 
