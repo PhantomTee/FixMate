@@ -12,14 +12,14 @@ export async function GET(req: NextRequest) {
   const service = createServiceClient();
 
   if (matched && category) {
-    // Use the scored ranking function
     const { data, error } = await service.rpc("match_artisans", {
       p_category: category,
       p_location: location,
       p_limit:    10,
     });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json(data);
+    // If RPC succeeds return it; otherwise fall through to regular query
+    if (!error) return NextResponse.json(data);
+    console.error("match_artisans RPC error:", error.message);
   }
 
   let q = service
