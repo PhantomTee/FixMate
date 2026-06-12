@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
@@ -93,11 +93,57 @@ function OnboardingForm() {
     reason: string;
   } | null>(null);
   const [kycLoading, setKycLoading] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
+
+  // If user is already logged in, skip account-creation steps
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        // Pre-fill name from existing session metadata
+        const sessionName = (session.user.user_metadata?.name as string) ?? "";
+        if (sessionName) setName(sessionName);
+
+        // If intent was passed via URL and it's artisan, jump straight to trade
+        if (intentParam === "artisan") {
+          setIntent("artisan");
+          setStep(4);
+        } else if (intentParam === null && step === 1) {
+          // Already logged in on the intent screen — skip to hire finish or artisan trade
+          // Leave on step 1 so user can still choose; clicking artisan will jump to 4
+        }
+      }
+      setSessionChecked(true);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // When a logged-in user selects intent, skip account creation
+  const handleIntent = async (chosen: "hire" | "artisan") => {
+    setIntent(chosen);
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      if (chosen === "artisan") {
+        go(4); // already have an account — go to trade selection
+      } else {
+        await finishHireFlow();
+      }
+    } else {
+      go(2); // no session — go to account creation
+    }
+  };
+
+  const go = (n: number) => { setError(""); setStep(n); };
+
+  const finishHireFlow = async () => {
+    const dest = nextParam === "/dashboard" ? "/profile" : nextParam;
+    router.push(dest);
+  };
 
   const totalSteps = intent === "artisan" ? 8 : 3;
   const isArtisan  = intent === "artisan";
 
-  const go = (n: number) => { setError(""); setStep(n); };
   const fmtPhone = (p: string) => {
     const digits = p.replace(/\D/g, "");
     if (digits.startsWith("0") && digits.length >= 10) return `+234${digits.slice(1)}`;
@@ -186,11 +232,6 @@ function OnboardingForm() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const finishHireFlow = async () => {
-    const dest = nextParam === "/dashboard" ? "/profile" : nextParam;
-    router.push(dest);
   };
 
   /* ── Step 5: save location ───────────────────────────── */
@@ -304,9 +345,15 @@ function OnboardingForm() {
           <span className="text-lg font-black text-gray-950">iSabi</span>
         </Link>
 
-        <StepDots total={totalSteps} current={step} />
+        {!sessionChecked && (
+          <div className="flex justify-center py-8">
+            <span className="w-6 h-6 border-2 border-green-700/30 border-t-green-700 rounded-full animate-spin" />
+          </div>
+        )}
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
+        {sessionChecked && <StepDots total={totalSteps} current={step} />}
+
+        {sessionChecked && <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
 
           {error && (
             <div className="bg-red-50 border border-red-100 px-4 py-3 rounded-xl text-xs text-red-700 font-semibold">{error}</div>
@@ -320,7 +367,7 @@ function OnboardingForm() {
                 <p className="text-xs text-gray-400 mt-1 font-semibold">How do you want to use iSabi?</p>
               </div>
               <div className="grid grid-cols-1 gap-3">
-                <button onClick={() => { setIntent("hire"); go(2); }}
+                <button onClick={() => handleIntent("hire")}
                   className="flex items-center gap-4 border-2 border-gray-200 hover:border-green-600 p-4 rounded-xl text-left transition-colors group">
                   <div className="w-10 h-10 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
                     <span className="text-xs font-black text-green-700">HIRE</span>
@@ -330,7 +377,7 @@ function OnboardingForm() {
                     <p className="text-xs text-gray-400 mt-0.5">Find verified artisans for any repair</p>
                   </div>
                 </button>
-                <button onClick={() => { setIntent("artisan"); go(2); }}
+                <button onClick={() => handleIntent("artisan")}
                   className="flex items-center gap-4 border-2 border-gray-200 hover:border-green-600 p-4 rounded-xl text-left transition-colors group">
                   <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
                     <span className="text-xs font-black text-gray-600">WORK</span>
@@ -665,11 +712,13 @@ function OnboardingForm() {
             </>
           )}
 
-        </div>
+        </div>}
 
-        <p className="text-center text-[10px] text-gray-400 mt-4 font-semibold">
-          By continuing you agree to iSabi&apos;s terms of service.
-        </p>
+        {sessionChecked && (
+          <p className="text-center text-[10px] text-gray-400 mt-4 font-semibold">
+            By continuing you agree to iSabi&apos;s terms of service.
+          </p>
+        )}
       </div>
     </div>
   );
