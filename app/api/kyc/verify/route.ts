@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
 
-const MODEL = "gemini-2.5-flash";
+const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
 const KYC_PROMPT = `You are a KYC verification agent for iSabi, a Nigerian home-services marketplace.
 
@@ -12,7 +12,7 @@ You are given two images:
 Your tasks:
 1. Use OCR to read the full name and NIN (or ID number) printed on the identity document.
 2. Compare the face photograph on the identity document to the face in the live selfie. Consider lighting, angle, and natural ageing.
-3. Return ONLY a valid JSON object with exactly this structure — no markdown, no explanation:
+3. Return ONLY a valid JSON object — no markdown, no explanation:
 
 {
   "extracted_name": "full name as printed on the document, or empty string if unreadable",
@@ -23,19 +23,13 @@ Your tasks:
   "reason": "one sentence explaining the result"
 }`;
 
-function stripBase64Prefix(dataUrl: string): { data: string; mimeType: string } {
-  const match = dataUrl.match(/^data:(image\/[^;]+);base64,(.+)$/);
-  if (match) return { mimeType: match[1], data: match[2] };
-  return { mimeType: "image/jpeg", data: dataUrl };
-}
-
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as { ninCard: string; selfie: string };
   if (!body.ninCard || !body.selfie) {
     return NextResponse.json({ error: "ninCard and selfie are required" }, { status: 400 });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY ?? process.env.GEMINI_API_KEY_1;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     // Demo mode — return mock pass so onboarding can be tested without a key
     return NextResponse.json({
@@ -44,31 +38,31 @@ export async function POST(req: NextRequest) {
       face_match:     true,
       confidence:     0.99,
       verified:       true,
-      reason:         "Demo mode — GEMINI_API_KEY not configured. Set it to enable real KYC.",
+      reason:         "Demo mode — GROQ_API_KEY not configured. Set it to enable real KYC.",
     });
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-  const idImage  = stripBase64Prefix(body.ninCard);
-  const selfieImg = stripBase64Prefix(body.selfie);
-
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: [{
-        role: "user",
-        parts: [
-          { text: KYC_PROMPT },
-          { inlineData: { mimeType: idImage.mimeType  as "image/jpeg", data: idImage.data  } },
-          { inlineData: { mimeType: selfieImg.mimeType as "image/jpeg", data: selfieImg.data } },
-        ],
-      }],
+    const groq = new Groq({ apiKey });
+
+    const completion = await groq.chat.completions.create({
+      model: VISION_MODEL,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: KYC_PROMPT },
+            { type: "image_url", image_url: { url: body.ninCard } },
+            { type: "image_url", image_url: { url: body.selfie } },
+          ],
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
     });
 
-    const raw = response.text ?? "";
-    // Strip any accidental markdown fences
-    const jsonStr = raw.replace(/```(?:json)?\s*/g, "").replace(/```\s*$/g, "").trim();
-    const result = JSON.parse(jsonStr) as {
+    const raw = completion.choices[0]?.message?.content ?? "{}";
+    const result = JSON.parse(raw) as {
       extracted_name: string;
       extracted_nin:  string;
       face_match:     boolean;
@@ -77,9 +71,17 @@ export async function POST(req: NextRequest) {
       reason:         string;
     };
 
-    return NextResponse.json(result);
+    // Ensure required fields exist
+    return NextResponse.json({
+      extracted_name: result.extracted_name ?? "",
+      extracted_nin:  result.extracted_nin  ?? "",
+      face_match:     result.face_match     ?? false,
+      confidence:     result.confidence     ?? 0,
+      verified:       result.verified       ?? false,
+      reason:         result.reason         ?? "Unable to verify",
+    });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Gemini KYC call failed";
+    const msg = err instanceof Error ? err.message : "Groq KYC call failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

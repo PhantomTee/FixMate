@@ -66,9 +66,12 @@ export default function ProfilePage() {
   const refresh = useCallback(async () => {
     try {
       const data = await loadUserDb();
+      if (!data) {
+        router.push("/auth?next=/profile");
+        return;
+      }
       setDb(data);
     } catch {
-      /* unauthenticated — redirect to auth */
       router.push("/auth?next=/profile");
       return;
     }
