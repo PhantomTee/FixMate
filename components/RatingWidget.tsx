@@ -10,32 +10,32 @@ interface Props {
 }
 
 const DIMENSIONS = [
-  { key: "punctuality", label: "Punctuality",  emoji: "⏰" },
-  { key: "neatness",    label: "Neatness",      emoji: "✨" },
-  { key: "skill",       label: "Skill",          emoji: "🔧" },
-  { key: "attitude",    label: "Attitude",       emoji: "😊" },
+  { key: "punctuality", label: "Punctuality" },
+  { key: "neatness",    label: "Neatness"    },
+  { key: "skill",       label: "Skill"       },
+  { key: "attitude",    label: "Attitude"    },
 ] as const;
 
 type DimKey = (typeof DIMENSIONS)[number]["key"];
 
-function StarRow({ label, emoji, value, onChange }: {
-  label: string; emoji: string; value: number; onChange: (v: number) => void;
+function StarRow({ label, value, onChange }: {
+  label: string; value: number; onChange: (v: number) => void;
 }) {
   const [hover, setHover] = useState(0);
   return (
     <div className="flex items-center justify-between">
-      <span className="text-sm font-black text-gray-700 flex items-center gap-1.5">
-        <span>{emoji}</span> {label}
-      </span>
+      <span className="text-sm font-black text-gray-700">{label}</span>
       <div className="flex gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
           <button key={star} type="button"
             onMouseEnter={() => setHover(star)}
             onMouseLeave={() => setHover(0)}
             onClick={() => onChange(star)}
-            className="text-xl leading-none transition-transform hover:scale-110"
+            className={`text-lg leading-none transition-all hover:scale-110 select-none ${
+              star <= (hover || value) ? "text-yellow-400" : "text-gray-200"
+            }`}
             aria-label={`${star} star`}>
-            {star <= (hover || value) ? "⭐" : "☆"}
+            ★
           </button>
         ))}
       </div>
@@ -80,7 +80,6 @@ export default function RatingWidget({ bookingId, artisanId, artisanName, onDone
   if (done) {
     return (
       <div className="bg-green-50 border border-green-100 rounded-xl p-4 text-center">
-        <p className="text-2xl mb-1">🎉</p>
         <p className="font-black text-green-700 text-sm">Thanks for your feedback!</p>
         <p className="text-xs text-green-600 mt-0.5">Ratings help other customers find great artisans.</p>
       </div>
@@ -100,7 +99,7 @@ export default function RatingWidget({ bookingId, artisanId, artisanName, onDone
 
       <div className="space-y-3">
         {DIMENSIONS.map((d) => (
-          <StarRow key={d.key} label={d.label} emoji={d.emoji}
+          <StarRow key={d.key} label={d.label}
             value={scores[d.key]}
             onChange={(v) => setScores((prev) => ({ ...prev, [d.key]: v }))} />
         ))}
@@ -114,7 +113,7 @@ export default function RatingWidget({ bookingId, artisanId, artisanName, onDone
       <button onClick={submit} disabled={loading || !allScored}
         className="w-full py-2.5 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
         {loading && <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-        {loading ? "Submitting…" : "Submit Rating →"}
+        {loading ? "Submitting…" : "Submit Rating"}
       </button>
     </div>
   );

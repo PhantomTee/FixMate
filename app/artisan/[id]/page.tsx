@@ -148,7 +148,7 @@ export default function ArtisanProfilePage() {
                 )}
                 {a.emergencyAvailable && (
                   <span className="bg-red-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full tracking-wider shrink-0">
-                    ⚡ EMERGENCY
+                    EMERGENCY
                   </span>
                 )}
               </div>

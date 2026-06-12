@@ -17,8 +17,8 @@ interface JobChatProps {
 }
 
 const QUICK_REPLIES: Record<UserType, string[]> = {
-  user:    ["When will you arrive?", "How long will this take?", "Please send a photo", "Great work, thank you! 🙌"],
-  artisan: ["On my way 🏃", "Arrived at location 📍", "Starting work now 🔧", "Done! Please inspect ✅", "Need more materials, back soon"],
+  user:    ["When will you arrive?", "How long will this take?", "Please send a photo", "Great work, thank you!"],
+  artisan: ["On my way", "Arrived at location", "Starting work now", "Done! Please inspect", "Need more materials, back soon"],
 };
 
 function fmtTime(ts: string) {

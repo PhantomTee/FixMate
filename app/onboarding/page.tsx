@@ -16,19 +16,9 @@ const NG_STATES = [
 
 /* ── Trade cards ─────────────────────────────────────────── */
 const TRADES = [
-  { emoji: "🚰", label: "Plumber"          },
-  { emoji: "⚡", label: "Electrician"       },
-  { emoji: "❄️", label: "AC Repair"         },
-  { emoji: "✂️", label: "Tailor"            },
-  { emoji: "🔧", label: "Generator Repair"  },
-  { emoji: "🧹", label: "Cleaning"          },
-  { emoji: "👟", label: "Shoemaker"         },
-  { emoji: "🚗", label: "Vulcanizer"        },
-  { emoji: "🪵", label: "Carpenter"         },
-  { emoji: "🎨", label: "Painter"           },
-  { emoji: "🔩", label: "Mechanic"          },
-  { emoji: "💇", label: "Hair Stylist"      },
-  { emoji: "🔨", label: "Other"             },
+  "Plumber","Electrician","AC Repair","Tailor","Generator Repair",
+  "Cleaning","Shoemaker","Vulcanizer","Carpenter","Painter",
+  "Mechanic","Hair Stylist","Other",
 ];
 
 type Intent = "hire" | "artisan" | null;
@@ -87,8 +77,19 @@ export default function OnboardingPage() {
   const [calloutFee, setCalloutFee] = useState("");
   const [dailyRate, setDailyRate]   = useState("");
 
-  // Step 8: selfie (artisan)
-  const [selfie, setSelfie] = useState<string | null>(null);
+  // Step 8: selfie + NIN card + KYC (artisan)
+  const [selfie, setSelfie]       = useState<string | null>(null);
+  const [ninCard, setNinCard]     = useState<string | null>(null);
+  const ninRef                    = useRef<HTMLInputElement>(null);
+  const [kycResult, setKycResult] = useState<{
+    extracted_name: string;
+    extracted_nin: string;
+    face_match: boolean;
+    confidence: number;
+    verified: boolean;
+    reason: string;
+  } | null>(null);
+  const [kycLoading, setKycLoading] = useState(false);
 
   const totalSteps = intent === "artisan" ? 8 : 3;
   const isArtisan  = intent === "artisan";
@@ -195,6 +196,36 @@ export default function OnboardingPage() {
     r.readAsDataURL(file);
   };
 
+  /* ── Step 8: NIN card handler ───────────────────────── */
+  const handleNinCardChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onloadend = () => setNinCard(r.result as string);
+    r.readAsDataURL(file);
+  };
+
+  /* ── Step 8: Gemini KYC verification ────────────────── */
+  const runKyc = async () => {
+    if (!selfie || !ninCard) { setError("Upload both your NIN card and selfie before verifying."); return; }
+    setKycLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/kyc/verify", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ ninCard, selfie }),
+      });
+      const data = await res.json() as typeof kycResult;
+      if (!res.ok) throw new Error((data as { reason?: string }).reason ?? "Verification failed");
+      setKycResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "KYC verification failed. Try again.");
+    } finally {
+      setKycLoading(false);
+    }
+  };
+
   /* ── Final artisan submit ────────────────────────────── */
   const handleArtisanSubmit = async () => {
     setLoading(true);
@@ -217,6 +248,8 @@ export default function OnboardingPage() {
           dailyRateNaira:   parseInt(dailyRate || "0", 10),
           portfolioPhotos:  portfolio,
           selfieUrl:        selfie ?? "",
+          ninVerified:      kycResult?.verified ?? false,
+          ninReference:     kycResult?.extracted_nin ?? "",
         }),
       });
       if (!res.ok) {
@@ -261,7 +294,9 @@ export default function OnboardingPage() {
               <div className="grid grid-cols-1 gap-3">
                 <button onClick={() => { setIntent("hire"); go(2); }}
                   className="flex items-center gap-4 border-2 border-gray-200 hover:border-green-600 p-4 rounded-xl text-left transition-colors group">
-                  <span className="text-3xl">🏠</span>
+                  <div className="w-10 h-10 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-black text-green-700">HIRE</span>
+                  </div>
                   <div>
                     <p className="font-black text-gray-950 group-hover:text-green-700">I need to hire</p>
                     <p className="text-xs text-gray-400 mt-0.5">Find verified artisans for any repair</p>
@@ -269,7 +304,9 @@ export default function OnboardingPage() {
                 </button>
                 <button onClick={() => { setIntent("artisan"); go(2); }}
                   className="flex items-center gap-4 border-2 border-gray-200 hover:border-green-600 p-4 rounded-xl text-left transition-colors group">
-                  <span className="text-3xl">🔧</span>
+                  <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-black text-gray-600">WORK</span>
+                  </div>
                   <div>
                     <p className="font-black text-gray-950 group-hover:text-green-700">I am an artisan</p>
                     <p className="text-xs text-gray-400 mt-0.5">Offer your skills and get more clients</p>
@@ -358,12 +395,11 @@ export default function OnboardingPage() {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {TRADES.map((t) => (
-                  <button key={t.label} onClick={() => setTrade(t.label)}
-                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
-                      trade === t.label ? "border-green-600 bg-green-50" : "border-gray-100 hover:border-gray-300"
+                  <button key={t} onClick={() => setTrade(t)}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all text-center min-h-[56px] ${
+                      trade === t ? "border-green-600 bg-green-50 text-green-700" : "border-gray-100 hover:border-gray-300 text-gray-700"
                     }`}>
-                    <span className="text-2xl leading-none">{t.emoji}</span>
-                    <span className="text-[10px] font-black text-gray-700 text-center leading-tight">{t.label}</span>
+                    <span className="text-[11px] font-black leading-tight">{t}</span>
                   </button>
                 ))}
               </div>
@@ -472,75 +508,130 @@ export default function OnboardingPage() {
             </>
           )}
 
-          {/* ── Step 8: Selfie + Review (artisan only) ── */}
+          {/* ── Step 8: Identity Verification + Review (artisan only) ── */}
           {step === 8 && isArtisan && (
             <>
               <div>
-                <h1 className="text-xl font-black text-gray-950">Almost done!</h1>
-                <p className="text-xs text-gray-400 mt-1 font-semibold">Take a selfie for identity and review your details</p>
+                <h1 className="text-xl font-black text-gray-950">Identity verification</h1>
+                <p className="text-xs text-gray-400 mt-1 font-semibold">
+                  Upload your NIN slip and take a selfie. iSabi AI verifies your identity instantly at no cost.
+                </p>
               </div>
 
-              {/* Selfie capture */}
-              <button type="button" onClick={() => selfieRef.current?.click()}
-                className={`w-full border-2 border-dashed rounded-xl flex flex-col items-center justify-center py-6 transition-colors ${
-                  selfie ? "border-green-300" : "border-gray-200 hover:border-green-400"
-                }`}>
-                {selfie
-                  ? <img src={selfie} alt="Selfie" className="w-24 h-24 rounded-full object-cover mx-auto" />
-                  : <>
-                      <span className="text-3xl mb-2">🤳</span>
-                      <p className="text-xs font-black text-gray-500">Tap to take a selfie</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">Used for identity verification</p>
-                    </>
-                }
-              </button>
-              <input ref={selfieRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handleSelfieChange} />
+              {/* NIN card upload */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
+                  NIN Slip / Government ID
+                </label>
+                <button type="button" onClick={() => ninRef.current?.click()}
+                  className={`w-full border-2 border-dashed rounded-xl flex flex-col items-center justify-center py-4 transition-colors ${
+                    ninCard ? "border-green-300 bg-green-50" : "border-gray-200 hover:border-green-400"
+                  }`}>
+                  {ninCard
+                    ? <img src={ninCard} alt="NIN card" className="max-h-28 object-contain rounded-lg" />
+                    : <>
+                        <p className="text-xs font-black text-gray-500">Tap to upload NIN slip or ID card</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Accepted: NIN slip, voter card, driver&apos;s licence</p>
+                      </>
+                  }
+                </button>
+                <input ref={ninRef} type="file" accept="image/*" className="hidden" onChange={handleNinCardChange} />
+              </div>
 
-              {/* Summary */}
+              {/* Selfie */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
+                  Live Selfie
+                </label>
+                <button type="button" onClick={() => selfieRef.current?.click()}
+                  className={`w-full border-2 border-dashed rounded-xl flex flex-col items-center justify-center py-4 transition-colors ${
+                    selfie ? "border-green-300 bg-green-50" : "border-gray-200 hover:border-green-400"
+                  }`}>
+                  {selfie
+                    ? <img src={selfie} alt="Selfie" className="w-20 h-20 rounded-full object-cover mx-auto" />
+                    : <>
+                        <p className="text-xs font-black text-gray-500">Tap to take a selfie</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Must match your ID photo</p>
+                      </>
+                  }
+                </button>
+                <input ref={selfieRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handleSelfieChange} />
+              </div>
+
+              {/* KYC verify button */}
+              {!kycResult && (
+                <button onClick={runKyc} disabled={kycLoading || !ninCard || !selfie}
+                  className="w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+                  {kycLoading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  {kycLoading ? "Verifying with Gemini AI…" : "Verify Identity"}
+                </button>
+              )}
+
+              {/* KYC result */}
+              {kycResult && (
+                <div className={`rounded-xl p-4 text-xs space-y-1.5 border ${kycResult.verified ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                  <p className={`font-black text-sm ${kycResult.verified ? "text-green-700" : "text-red-700"}`}>
+                    {kycResult.verified ? "Identity verified" : "Verification failed"}
+                  </p>
+                  {kycResult.extracted_name && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-semibold">Name on ID</span>
+                      <span className="font-black text-gray-950">{kycResult.extracted_name}</span>
+                    </div>
+                  )}
+                  {kycResult.extracted_nin && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 font-semibold">NIN</span>
+                      <span className="font-black text-gray-950 font-mono">{kycResult.extracted_nin}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-semibold">Face match</span>
+                    <span className={`font-black ${kycResult.face_match ? "text-green-700" : "text-red-600"}`}>
+                      {kycResult.face_match ? `Yes (${Math.round(kycResult.confidence * 100)}%)` : "No"}
+                    </span>
+                  </div>
+                  <p className="text-gray-500 italic">{kycResult.reason}</p>
+                  {!kycResult.verified && (
+                    <button onClick={() => { setKycResult(null); setNinCard(null); setSelfie(null); }}
+                      className="mt-2 text-xs font-black text-red-600 hover:text-red-800">
+                      Try again
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Application summary */}
               <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-gray-400 font-semibold">Name</span>
-                  <span className="font-black text-gray-950">{name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400 font-semibold">Phone</span>
-                  <span className="font-black text-gray-950 font-mono">{fmtPhone(phone)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400 font-semibold">Trade</span>
-                  <span className="font-black text-gray-950">{trade}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400 font-semibold">Location</span>
-                  <span className="font-black text-gray-950 text-right">{[landmark, lga, state].filter(Boolean).join(", ")}</span>
-                </div>
-                {calloutFee && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-400 font-semibold">Call-out fee</span>
-                    <span className="font-black text-gray-950">₦{parseInt(calloutFee).toLocaleString()}</span>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Application Summary</p>
+                {[
+                  ["Name", name],
+                  ["Phone", fmtPhone(phone)],
+                  ["Trade", trade],
+                  ["Location", [landmark, lga, state].filter(Boolean).join(", ")],
+                  calloutFee ? ["Call-out fee", `₦${parseInt(calloutFee).toLocaleString()}`] : null,
+                  dailyRate  ? ["Daily rate",   `₦${parseInt(dailyRate).toLocaleString()}`]  : null,
+                  [`Portfolio`, `${portfolio.length} photo${portfolio.length !== 1 ? "s" : ""}`],
+                ].filter(Boolean).map((row) => {
+                  const [label, value] = row as [string, string];
+                  return (
+                  <div key={label} className="flex justify-between gap-2">
+                    <span className="text-gray-400 font-semibold shrink-0">{label}</span>
+                    <span className="font-black text-gray-950 text-right">{value}</span>
                   </div>
-                )}
-                {dailyRate && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-400 font-semibold">Daily rate</span>
-                    <span className="font-black text-gray-950">₦{parseInt(dailyRate).toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-400 font-semibold">Portfolio</span>
-                  <span className="font-black text-gray-950">{portfolio.length} photo{portfolio.length !== 1 ? "s" : ""}</span>
-                </div>
+                  );
+                })}
               </div>
 
-              <button onClick={handleArtisanSubmit} disabled={loading}
+              <button onClick={handleArtisanSubmit} disabled={loading || (!kycResult?.verified && !!ninCard && !!selfie && !!kycResult)}
                 className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
                 {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {loading ? "Submitting application…" : "Submit Application →"}
+                {loading ? "Submitting application…" : kycResult?.verified ? "Submit Verified Application" : "Submit Application"}
               </button>
               <p className="text-[10px] text-gray-400 text-center">
-                Your application is reviewed within 24 hours. You&apos;ll receive a WhatsApp notification when approved.
+                Reviewed within 24 hours. You will receive a WhatsApp notification when approved.
               </p>
-              <button onClick={() => go(7)} className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">← Back</button>
+              <button onClick={() => go(7)} className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">Back</button>
             </>
           )}
 

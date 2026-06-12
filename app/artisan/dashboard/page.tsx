@@ -616,7 +616,7 @@ export default function ArtisanDashboardPage() {
                                         : "border-gray-200 text-gray-500 hover:border-green-400"
                                     }`}
                                   >
-                                    {photoMap[booking.id]?.before ? "✓ Before photo taken" : "📷 Take Before Photo (optional)"}
+                                    {photoMap[booking.id]?.before ? "Before photo taken" : "Take Before Photo (optional)"}
                                   </button>
                                   <button
                                     onClick={() => run(booking.id, "mark_in_progress")}
@@ -634,7 +634,7 @@ export default function ArtisanDashboardPage() {
                                       onClick={() => triggerPhoto(booking.id, "after")}
                                       className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors"
                                     >
-                                      📷 Upload After Photo → Request Payment
+                                      Upload After Photo — Request Payment
                                     </button>
                                   ) : (
                                     <button
@@ -643,7 +643,7 @@ export default function ArtisanDashboardPage() {
                                       className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                                     >
                                       {photoLoading[booking.id] && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                                      {photoLoading[booking.id] ? "Sending request…" : "✓ After photo done — Request Payment"}
+                                      {photoLoading[booking.id] ? "Sending request…" : "After photo done — Request Payment"}
                                     </button>
                                   )}
                                 </>

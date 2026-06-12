@@ -112,27 +112,27 @@ async function notifyParties(
   const messages: Record<string, { to: string; text: string }[]> = {
     artisan_accept: [{
       to:   customerPhone,
-      text: `✅ ${artisanName} has accepted your job and is on the way! Open iSabi to track progress.`,
+      text: `${artisanName} has accepted your job and is on the way. Open iSabi to track progress.`,
     }],
     mark_in_progress: [{
       to:   customerPhone,
-      text: `🔧 ${artisanName} has started work on your job. Your ${amount} is secured in escrow.`,
+      text: `${artisanName} has started work on your job. Your ${amount} is secured in escrow.`,
     }],
     mark_completed: [{
       to:   customerPhone,
-      text: `✅ Job done! ${artisanName} marked the work as complete. Inspect it and release payment in iSabi when satisfied.`,
+      text: `Job done. ${artisanName} marked the work as complete. Inspect it and release payment in iSabi when satisfied.`,
     }],
     user_release: [{
       to:   artisanPhone,
-      text: `💰 Payment of ${amount} released to your iSabi balance! Open the app to request a payout.`,
+      text: `Payment of ${amount} released to your iSabi balance. Open the app to request a payout.`,
     }],
     open_dispute: [
-      { to: customerPhone, text: `⚠️ Your dispute has been received. Our team will review your booking within 24 hours.` },
-      { to: artisanPhone,  text: `⚠️ A dispute has been opened on one of your bookings. Our team will review within 24 hours.` },
+      { to: customerPhone, text: `Your dispute has been received. Our team will review your booking within 24 hours.` },
+      { to: artisanPhone,  text: `A dispute has been opened on one of your bookings. Our team will review within 24 hours.` },
     ],
     artisan_decline: [{
       to:   customerPhone,
-      text: `ℹ️ The artisan could not take your job. We are finding another available artisan near you.`,
+      text: `The artisan could not take your job. We are finding another available artisan near you.`,
     }],
   };
 
@@ -141,12 +141,12 @@ async function notifyParties(
 }
 
 const SYSTEM_MSG: Partial<Record<string, string>> = {
-  artisan_accept:   "✅ Artisan accepted the job and is on the way",
-  mark_in_progress: "🔧 Job started — funds secured in escrow until completion",
-  mark_completed:   "✅ Artisan marked the job complete — please inspect and release payment",
-  user_release:     "💰 Payment released — job complete! Thank you for using iSabi",
-  open_dispute:     "⚠️ Dispute opened — our admin team will review within 24 hours",
-  artisan_decline:  "❌ Artisan could not take this job — we're finding you another",
+  artisan_accept:   "Artisan accepted the job and is on the way",
+  mark_in_progress: "Job started — funds secured in escrow until completion",
+  mark_completed:   "Artisan marked the job complete — please inspect and release payment",
+  user_release:     "Payment released — job complete. Thank you for using iSabi",
+  open_dispute:     "Dispute opened — our admin team will review within 24 hours",
+  artisan_decline:  "Artisan could not take this job — we are finding you another",
 };
 
 async function insertSystemMessage(

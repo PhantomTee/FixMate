@@ -146,7 +146,6 @@ export default function ReportPage() {
                 ? <img src={imagePreview} alt="Preview" className="max-h-40 mx-auto object-contain" />
                 : (
                   <div className="flex flex-col items-center gap-2">
-                    <span className="text-2xl">📷</span>
                     <span className="text-sm font-semibold text-gray-500 group-hover:text-green-700">Tap to add a photo</span>
                     <span className="text-xs text-gray-400">Optional — helps iSabi AI diagnose faster</span>
                   </div>
@@ -295,7 +294,7 @@ export default function ReportPage() {
                             <span className="text-[10px] font-black text-green-700 bg-green-50 px-1.5 py-0.5">{artisan.trustScore}% Trust</span>
                             {artisan.badge && artisan.badge !== "Newbie" && (
                               <span className={`text-[10px] font-black px-1.5 py-0.5 ${artisan.badge === "iSabi Pro" ? "bg-yellow-100 text-yellow-700" : "bg-blue-50 text-blue-600"}`}>
-                                {artisan.badge === "iSabi Pro" ? "⭐ iSabi Pro" : "✓ Verified"}
+                                {artisan.badge === "iSabi Pro" ? "iSabi Pro" : "Verified"}
                               </span>
                             )}
                           </div>

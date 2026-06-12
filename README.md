@@ -1,7 +1,6 @@
-# FixMate — AI-Powered Home Repair with Simulated OPay Escrow
+# FixMate — AI-Powered Home Services with Escrow Payments
 
-> **OPay × Google Gemini Hackathon Submission**
-> Connecting Nigerian households to verified local artisans through Gemini-backed AI diagnosis and trust-safe OPay escrow payments.
+> **Connecting Nigerian households to verified local artisans through AI diagnosis, KYC identity verification, and trust-safe escrow payments.**
 
 ---
 
@@ -11,229 +10,260 @@ Nigeria has millions of skilled tradespeople — plumbers, electricians, AC tech
 
 ## The Solution
 
-FixMate combines three technologies to fix this:
-
 | Layer | Technology | Role |
 |---|---|---|
-| AI Triage | Google Gemini 2.5 Flash | Diagnoses issues, estimates costs, briefs artisans |
-| Payments | OPay Escrow (simulated) | Holds funds until job completion — no risk for either party |
-| Trust | Calculated trust score | 6-factor algorithm replaces manual ratings |
+| AI Diagnosis | Groq (Llama 4 Scout) + Gemini 2.5 Flash | Diagnoses issues from text and photos, estimates fair cost |
+| Identity KYC | Gemini 2.5 Flash multimodal | NIN OCR + selfie face-match — zero-cost, no third-party API |
+| Payments | Paystack + Supabase escrow | Holds funds until job completion — safe for both parties |
+| Verification | Badge tiers (Newbie / Verified / iSabi Pro) | Auto-updated via DB trigger based on completed jobs and ratings |
+| Notifications | WhatsApp via Termii (or Twilio fallback) | Every booking event delivered to phone |
 
 ---
 
-## Key Features
+## Features
 
-### 1. Gemini AI Diagnosis
-- Describe an issue in text or upload a photo
-- Gemini returns: issue title, summary, urgency, cost estimate (min/max), safety warning, first-aid steps, follow-up questions for the artisan, and a structured artisan brief
-- Supports 5 languages: **English, Pidgin, Yoruba, Hausa, Igbo**
-- Falls back to smart mock responses when `GEMINI_API_KEY` is missing
+### AI Issue Diagnosis
+- Describe a home problem in text or upload a photo
+- Groq Llama 4 Scout Vision returns: issue title, urgency, cost estimate (min/max in Naira), safety warning, first-aid steps, and a structured artisan brief
+- Quote fairness check: compares artisan's quote to AI estimate and flags overpricing
+- Dispute summaries: AI analyses the context and recommends resolution
+- Full demo mode when `GROQ_API_KEY` is not set
 
-### 2. OPay Escrow Simulation
-- Full escrow state machine: `not_funded → funded → accepted → in_progress → completed → released`
-- Critical guards enforced in code:
-  - Artisan **cannot accept** until customer funds escrow
-  - Customer **cannot release** until artisan marks job completed
-  - Admin can force-refund or force-release in disputes
-- Fee structure: customer 2% platform fee, artisan 10% fee on release
-- Transparent OPay reference number on every booking
-- `/opay-simulator` page shows the full payment ledger and lets judges trigger webhooks
+### Zero-Cost KYC Engine
+- Artisan uploads their NIN slip (or voter card / driver's licence) + takes a live selfie
+- Gemini 2.5 Flash performs multimodal OCR to extract name and NIN number
+- Gemini compares the document photo to the live selfie (face match)
+- Returns structured JSON: `extracted_name`, `extracted_nin`, `face_match`, `confidence`, `verified`, `reason`
+- Runs on Google AI Studio free tier — no Smile ID, no Dojah, no per-verification cost
+- Falls back to a demo-mode pass-through when `GEMINI_API_KEY` is not set
 
-### 3. Calculated Trust Score
-Six-factor weighted formula (not manual star ratings):
-```
-Completed jobs (30%) + Verified ID (20%) + Review rating (20%)
-+ Low dispute rate (15%) + Response speed (10%) + Profile completeness (5%)
-```
-Tiers: Elite (90+) · Trusted (75+) · Good (60+) · New (0+)
+### Phone-First Onboarding (8 steps)
+1. Intent — hire a professional or register as an artisan
+2. Name + phone number + password
+3. OTP verification via SMS
+4. Trade selection from a visual card grid (artisan only)
+5. State + LGA + nearest landmark
+6. Upload up to 3 portfolio photos (artisan only)
+7. Set callout fee and daily rate (artisan only)
+8. NIN card upload + live selfie KYC + application review (artisan only)
 
-### 4. Demo Role System
-Switch between **Customer**, **Artisan**, and **Admin** with one click via the amber demo banner — no login required. Each role shows the correct dashboard and restricts inappropriate actions.
+### Escrow Payment Flow
+Full state machine: `not_funded → funded → accepted → in_progress → completed → released`
+- Artisan cannot accept a job until the customer funds escrow
+- Artisan uploads a before photo (optional) when starting, then uploads an after photo to trigger a payment request
+- Customer has 48 hours to approve or open a dispute
+- Auto-release cron job (runs hourly) releases payment automatically after the 48-hour window if neither action is taken
+- Platform fee: 2% on customer deposit, 10% on artisan release
 
-### 5. USSD & WhatsApp Demos
-- `/ussd-demo` — phone-frame simulation for low-data users who can't access the web app
-- `/whatsapp-demo` — WhatsApp-style bot interface powered by the same Gemini actions
+### Before/After Photo Proof
+- Artisan uploads a before photo when accepting the job (optional)
+- After-photo upload triggers `escrow_status → completed` and sets `auto_release_at = now() + 48h`
+- Photos stored in booking record, visible to both parties
 
----
+### Trust & Ratings
+- Post-job rating covers four dimensions: Punctuality, Neatness, Skill, Attitude
+- Average star score feeds into the artisan's trust calculation
+- Badge tiers auto-updated via Supabase DB trigger:
+  - **Newbie** — default
+  - **Verified** — 3+ completed jobs and average score 3.5+
+  - **iSabi Pro** — 10+ completed jobs and average score 4.5+
 
-## Demo Flow for Judges
+### WhatsApp Notifications
+- Every booking event (new job, accepted, completed, released, dispute) sends a WhatsApp message
+- Primary: Termii (Nigeria-first, WhatsApp Business)
+- Fallback: Twilio WhatsApp sandbox
+- Inbound messages handled via webhook at `/api/whatsapp/webhook` (Termii) and `/api/whatsapp/twilio`
 
-> Start at the homepage and follow the numbered cards in the **"Run the Full Demo Flow"** section.
-
-**Step 1 — Report Issue** (`/report`)
-1. Click "Report Issue" or use the Judge Demo CTA on the homepage
-2. Type a description (e.g. "My generator is smoking and smells like fuel")
-3. Optionally upload a photo
-4. Choose a language (Pidgin, Yoruba, etc.)
-5. Click "Analyze Issue" — Gemini diagnoses the problem
-6. See cost estimate, safety warning, recommended artisans with match reasons
-7. Expand "AI Artisan Brief" on any artisan card
-
-**Step 2 — Book & Fund Escrow** (`/booking`)
-1. Click "Select & Book" on an artisan
-2. Review the cost breakdown (quote + 2% user fee)
-3. Click "Fund Escrow with OPay →" — funds move from wallet to escrow
-4. Visit `/opay-simulator` to see the payment record and simulate webhooks
-
-**Step 3 — Artisan Hub** (`/artisan/dashboard`)
-1. Switch role to **Artisan** using the amber demo banner
-2. See the incoming job — "Accept" button only activates once escrow is funded
-3. Accept the job, mark In Progress, then mark Completed
-4. Trust score breakdown is shown with all 6 factors
-
-**Step 4 — Release Funds** (`/booking` or `/dashboard`)
-1. Switch back to **Customer** role
-2. "Release Funds" button is now active (only after artisan marks completed)
-3. Release sends payment to artisan minus the 10% artisan fee
-4. Try "Open Dispute" to route the job to admin
-
-**Step 5 — Admin Console** (`/admin`)
-1. Switch to **Admin** role
-2. See platform metrics: total escrow locked, fees collected, open disputes
-3. View calculated trust scores for all artisans with tier badges
-4. Click "AI Summary" on a dispute to get Gemini's recommended action
-5. Use escrow controls to force-refund or force-release any booking
-
----
-
-## Architecture
-
-```
-app/
-  page.tsx              — Homepage with judge CTA
-  report/page.tsx       — AI diagnosis + artisan matching
-  booking/page.tsx      — Escrow funding and status
-  dashboard/page.tsx    — Customer wallet and job history
-  artisan/
-    register/           — Artisan onboarding
-    dashboard/          — Artisan jobs, trust score, inventory
-  admin/page.tsx        — Admin escrow controls and trust scores
-  opay-simulator/       — OPay payment ledger for judges
-  ussd-demo/            — USSD simulation
-  whatsapp-demo/        — WhatsApp bot demo
-  api/opay/webhook/     — Simulated OPay webhook endpoint
-  actions.ts            — All Gemini server actions
-
-lib/
-  types.ts              — All TypeScript types
-  demo-db.ts            — localStorage database with escrow state machine
-  demo-auth.ts          — Demo role management
-  opay-simulator.ts     — OPay payment simulation
-  trust-score.ts        — Calculated trust score algorithm
-  store.ts              — Zustand global state
-
-components/
-  DemoModeBanner.tsx    — Role switcher (amber banner)
-  Navbar.tsx            — Navigation with role indicator
-  LocationAutocomplete  — Google Places integration
-  JobChat.tsx           — In-job messaging
-```
-
----
-
-## Why OPay
-
-OPay is the escrow backbone of FixMate. The simulator is a **transparent mock** of real OPay APIs:
-
-| Simulator function | Real OPay equivalent |
-|---|---|
-| `createPaymentIntent()` | OPay Checkout API — initiate payment |
-| `verifyPayment()` | OPay Query API — check payment status |
-| `simulateWebhook()` | Real OPay HMAC-signed webhook |
-| `releaseEscrowPayment()` | OPay Split/Transfer API |
-| `refundEscrowPayment()` | OPay Refund API |
-
-To connect real OPay APIs: replace the functions in `lib/opay-simulator.ts` with actual HTTP calls and wire the `app/api/opay/webhook/route.ts` endpoint to your OPay webhook URL. Every other part of the app stays the same.
-
----
-
-## Why Gemini
-
-Gemini powers every intelligent action in FixMate:
-
-- **Issue diagnosis** — structured JSON response with urgency, cost, safety notes
-- **Artisan brief** — tells the artisan exactly what to bring and what to expect
-- **Quote fairness** — compares artisan quote to Gemini estimate, flags overpricing
-- **Dispute summary** — analyses the dispute context and recommends resolution
-
-All Gemini calls are in `app/actions.ts` as Next.js server actions. Every function has a mock fallback, so the app runs in full demo mode with zero API keys.
-
----
-
-## Setup
-
-### Quick start (demo mode — no API keys needed)
-
-```bash
-git clone https://github.com/phantomtee/fixmate.git
-cd fixmate
-npm install
-npm run dev
-# Open http://localhost:3000
-```
-
-The app runs completely in demo mode with realistic mock data.
-
-### With Gemini AI
-
-```bash
-cp .env.example .env.local
-# Edit .env.local and add your GEMINI_API_KEY
-npm run dev
-```
-
-Get a free Gemini API key at [aistudio.google.com](https://aistudio.google.com/).
-
-### Environment variables
-
-See `.env.example` for all variables. Only `GEMINI_API_KEY` is needed for live AI features — everything else is optional.
-
----
-
-## Routes
-
-| Path | Description | Role |
-|---|---|---|
-| `/` | Homepage with judge CTA | All |
-| `/report` | Create job + AI diagnosis | Customer |
-| `/booking` | Fund escrow, track status | Customer |
-| `/dashboard` | Wallet, job history | Customer |
-| `/artisan/register` | Artisan onboarding | Public |
-| `/artisan/dashboard` | Jobs, trust score, inventory | Artisan |
-| `/admin` | Platform controls | Admin |
-| `/opay-simulator` | OPay ledger + webhook test | Judge |
-| `/ussd-demo` | USSD phone demo | Judge |
-| `/whatsapp-demo` | WhatsApp bot demo | Judge |
-| `/api/opay/webhook` | Simulated webhook endpoint | System |
+### Real-Time Job Chat
+- In-app messaging on every booking
+- Quick reply shortcuts for customer and artisan roles
+- Supabase real-time subscriptions for instant delivery
 
 ---
 
 ## Tech Stack
 
-- **Next.js 15** (App Router, server actions)
-- **React 19** with TypeScript strict mode
-- **Gemini 2.5 Flash** via `@google/genai`
-- **Tailwind CSS 4** with custom animations
-- **Zustand** for global state
-- **localStorage** demo database (no real Firebase required)
-- **React Leaflet** for maps
+| Area | Technology |
+|---|---|
+| Framework | Next.js 15 (App Router, server actions) |
+| Language | TypeScript (strict) |
+| UI | Tailwind CSS, Zustand |
+| Database | Supabase (PostgreSQL + real-time) |
+| Auth | Supabase Auth (phone OTP) |
+| AI — Diagnosis | Groq SDK, `meta-llama/llama-4-scout-17b-16e-instruct` (vision) |
+| AI — KYC | Google Gemini 2.5 Flash via `@google/genai` |
+| Payments | Paystack |
+| WhatsApp | Termii (primary) / Twilio (fallback) |
+| Maps | Google Places API |
+| Cron | Vercel Cron (`vercel.json`) |
 
 ---
 
-## Roadmap to Production
+## Project Structure
 
-- [ ] Replace `lib/opay-simulator.ts` with real OPay Checkout + Webhook APIs
-- [ ] Add Firebase Auth for real user accounts
-- [ ] Connect Firestore as the production database
-- [ ] Add Firebase Storage for artisan ID verification uploads
-- [ ] Integrate Google Maps Distance Matrix for actual proximity matching
-- [ ] Send real WhatsApp notifications via Twilio or Meta Cloud API
-- [ ] Add USSD gateway via Africa's Talking
+```
+app/
+  page.tsx                   — Homepage
+  report/page.tsx            — AI diagnosis + artisan matching
+  onboarding/page.tsx        — 8-step phone-first onboarding
+  auth/page.tsx              — Phone or email sign-in
+  profile/page.tsx           — Customer profile, wallet, job history, escrow actions
+  browse/page.tsx            — Browse and filter artisans
+  artisan/
+    [id]/page.tsx            — Artisan public profile
+    dashboard/page.tsx       — Artisan jobs, before/after photos, earnings
+  admin/page.tsx             — Admin escrow controls and trust scores
+  api/
+    auth/                    — Session helpers
+    artisans/register/       — Artisan registration
+    bookings/[id]/photos/    — Before/after photo upload, escrow state transition
+    cron/auto-release/       — Hourly auto-release of completed escrow
+    diagnose/                — Groq AI diagnosis
+    escrow/                  — Fund, release, dispute, refund
+    kyc/verify/              — Gemini KYC: NIN OCR + face match
+    ratings/                 — Post-job ratings
+    whatsapp/                — Termii + Twilio webhook handlers
+
+lib/
+  types.ts                   — All TypeScript types
+  api.ts                     — Data helpers (toArtisan, loadUserDb, etc.)
+  supabase/                  — Browser, server, and service role clients
+
+components/
+  Navbar.tsx                 — Top bar + mobile bottom navigation
+  RatingWidget.tsx           — 4-dimension star rating form
+  JobChat.tsx                — Real-time booking chat
+  WhatsAppFAB.tsx            — Floating WhatsApp button
+
+supabase/migrations/         — SQL migration files
+vercel.json                  — Cron schedule (hourly auto-release)
+```
 
 ---
 
-## Team
+## Getting Started
 
-Built for the **OPay × Google Gemini Developer Scholarship Hackathon**.
+### Prerequisites
+- Node.js 18+
+- A Supabase project (free tier works)
+- Optional: Groq API key, Gemini API key, Paystack keys
 
-> This demo uses a simulated OPay payment environment. No real money is transferred. The simulator is designed to be a direct drop-in replacement for real OPay API calls.
+### Installation
+
+```bash
+git clone https://github.com/phantomtee/fixmate.git
+cd fixmate
+npm install
+cp .env.example .env.local
+# Fill in .env.local (see table below)
+npm run dev
+# Open http://localhost:3000
+```
+
+### Database setup
+
+Run the migration files in order via the Supabase SQL Editor:
+
+```
+supabase/migrations/001_*.sql
+supabase/migrations/002_*.sql
+...through...
+supabase/migrations/007_escrow_photos.sql
+```
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server only) |
+| `GROQ_API_KEY` | No | Groq API key — AI diagnosis. Omit to use demo mock |
+| `GEMINI_API_KEY` | No | Google Gemini key — KYC verification. Omit to use demo pass-through |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | No | Google Places autocomplete |
+| `PAYSTACK_SECRET_KEY` | No | Paystack secret key (escrow payments) |
+| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | No | Paystack public key |
+| `TERMII_API_KEY` | No | Termii key — WhatsApp notifications |
+| `TWILIO_ACCOUNT_SID` | No | Twilio SID — fallback WhatsApp |
+| `TWILIO_AUTH_TOKEN` | No | Twilio auth token |
+| `TWILIO_WHATSAPP_NUMBER` | No | Twilio WhatsApp sender number |
+| `NEXT_PUBLIC_WHATSAPP_NUMBER` | No | Number shown on floating WhatsApp button |
+| `CRON_SECRET` | No | Bearer token protecting the auto-release cron endpoint |
+| `NEXT_PUBLIC_APP_URL` | No | Full URL of your deployment |
+
+---
+
+## Escrow State Machine
+
+```
+Customer reports issue
+        |
+        v
+  Artisan matched
+        |
+        v
+  Customer funds escrow ──► not_funded → funded
+        |
+        v
+  Artisan accepts job ─────► funded → accepted
+        |
+        v
+  Work begins ─────────────► accepted → in_progress
+        |
+        v
+  Artisan uploads after photo ► in_progress → completed
+  (auto_release_at = now + 48h)
+        |
+      ┌─┴──────────────┐
+      v                 v
+  Customer releases   Customer opens dispute
+  (manual)            (→ admin review)
+      |
+      v
+  released ──► artisan paid (minus 10% fee)
+        |
+        v
+  48h timeout ──► auto-released by cron
+```
+
+---
+
+## KYC Architecture
+
+Traditional approach: pay Smile ID or Dojah ~$0.50–$2.00 per verification.
+
+FixMate approach: send NIN card image + live selfie as `inlineData` to Gemini 2.5 Flash with a structured KYC prompt. Gemini performs OCR on the document and compares faces. Returns a JSON verdict with name, NIN, face_match, confidence, and a one-sentence reason. Total cost on Google AI Studio free tier: $0.
+
+```
+Client (browser)
+    ├── NIN card image (base64)
+    └── Live selfie (base64)
+           │
+           ▼
+    POST /api/kyc/verify
+           │
+           ▼
+    Gemini 2.5 Flash
+    (multimodal: OCR + face comparison)
+           │
+           ▼
+    { extracted_name, extracted_nin,
+      face_match, confidence,
+      verified, reason }
+```
+
+---
+
+## Cron Auto-Release
+
+`vercel.json` schedules `/api/cron/auto-release` to run every hour.
+
+The endpoint:
+1. Finds all bookings where `escrow_status = 'completed'` and `auto_release_at <= now()`
+2. Updates each to `escrow_status = 'released'`
+3. Inserts an `escrow_transactions` record for the release
+4. Returns a count of released bookings
+
+Protect the endpoint with `CRON_SECRET` — only Vercel's cron service (and your own `Authorization: Bearer <secret>` calls) can trigger it.
