@@ -1,0 +1,21 @@
+name: Escrow Auto-Release
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # every hour
+  workflow_dispatch:        # allow manual trigger from GitHub UI
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger auto-release endpoint
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET "${{ secrets.APP_URL }}/api/cron/auto-release" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          echo "Status: $response"
+          if [ "$response" != "200" ]; then
+            echo "Auto-release failed with HTTP $response"
+            exit 1
+          fi
