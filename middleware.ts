@@ -35,15 +35,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Admin check — email whitelist, phone whitelist, or role in user_metadata
+  // Admin check — phone in whitelist or role in user_metadata
   if (ADMIN_ONLY.some((p) => pathname.startsWith(p))) {
-    const adminEmails = (process.env.ADMIN_EMAIL_WHITELIST ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
-    const adminPhones = (process.env.ADMIN_PHONE_WHITELIST ?? "").split(",").map((p) => p.trim()).filter(Boolean);
+    const adminPhones = (process.env.ADMIN_PHONE_WHITELIST ?? "").split(",").map((p) => p.trim());
     const isAdmin =
       user.user_metadata?.role === "admin" ||
-      (adminEmails.length > 0 && adminEmails.includes((user.email ?? "").toLowerCase())) ||
-      (adminPhones.length > 0 && adminPhones.includes(user.phone ?? ""));
-    if (!isAdmin) return NextResponse.redirect(new URL("/dashboard", request.url));
+      adminPhones.includes(user.phone ?? "");
+    if (!isAdmin) return NextResponse.redirect(new URL("/profile", request.url));
   }
 
   return response;

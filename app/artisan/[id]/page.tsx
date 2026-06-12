@@ -130,7 +130,7 @@ export default function ArtisanProfilePage() {
               ) : (
                 <div className="w-24 h-24 flex items-center justify-center bg-gray-800 border-2 border-gray-700 rounded-2xl">
                   <span className="text-4xl font-black text-gray-300">
-                    {a.fullName.charAt(0).toUpperCase()}
+                    {( a.fullName ?? "?" ).charAt(0).toUpperCase()}
                   </span>
                 </div>
               )}

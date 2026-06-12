@@ -132,6 +132,9 @@ export type Artisan = {
   emergencyAvailable?: boolean;
   serviceAreas?: string[];
   rating?: number;
+  badge?: string;
+  calloutFeeNaira?: number;
+  dailyRateNaira?: number;
   createdAt: string;
 };
 

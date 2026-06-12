@@ -2,18 +2,25 @@
 
 import Link from "next/link";
 
-export default function WhatsAppFAB() {
-  const waNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  if (!waNumber) return null;
+// NEXT_PUBLIC_WHATSAPP_NUMBER   — digits only, e.g. 14155238886
+// NEXT_PUBLIC_WHATSAPP_JOIN_CODE — e.g. "join whistle-bear" (Twilio sandbox)
+//                                  remove this var once you have a real WA Business number
 
-  const href = `https://wa.me/${waNumber.replace(/\D/g, "")}?text=Hi!%20I%20need%20help%20with%20a%20home%20repair.`;
+const number   = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER   ?? "14155238886";
+const joinCode = process.env.NEXT_PUBLIC_WHATSAPP_JOIN_CODE ?? "join whistle-bear";
+
+const prefilledText = encodeURIComponent(joinCode);
+
+export default function WhatsAppFAB() {
+
+  const href = `https://wa.me/${number.replace(/\D/g, "")}?text=${prefilledText}`;
 
   return (
     <Link
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-5 right-5 z-50 flex items-center gap-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-black px-4 py-3 rounded-2xl shadow-lg transition-all hover:shadow-xl hover:scale-105 active:scale-95"
+      className="fixed bottom-20 right-4 md:bottom-5 md:right-5 z-50 flex items-center gap-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-black px-4 py-3 shadow-lg transition-all hover:shadow-xl hover:scale-105 active:scale-95"
       aria-label="Chat on WhatsApp"
     >
       {/* WhatsApp icon */}

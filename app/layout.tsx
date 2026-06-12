@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={font.variable}>
       <body className="font-sans antialiased bg-white" suppressHydrationWarning>
         <Navbar />
-        {children}
+        <div className="pb-16 md:pb-0">{children}</div>
         <WhatsAppFAB />
       </body>
     </html>

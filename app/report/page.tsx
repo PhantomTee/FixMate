@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { diagnoseIssue } from "@/app/actions";
-import LocationInput from "@/components/LocationInput";
+import LocationAutocomplete from "@/components/LocationAutocomplete";
 import { createBooking, createJob } from "@/lib/api";
 import { Artisan, DiagnosisRecord, JobRequest, SupportedLanguage } from "@/lib/types";
 import { useiSabiStore } from "@/lib/store";
@@ -28,7 +28,7 @@ export default function ReportPage() {
   const setActiveJobId = useiSabiStore((s) => s.setActiveJobId);
 
   const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
+  const [location, setLocation] = useState("Yaba, Lagos");
   const [language, setLanguage] = useState<SupportedLanguage>("English");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -38,19 +38,15 @@ export default function ReportPage() {
   const [bookingError, setBookingError] = useState("");
   const [analyzeError, setAnalyzeError] = useState("");
 
-  // Prefill location from user profile
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data: { user?: { location?: string } | null }) => {
-        if (data.user?.location) setLocation(data.user.location);
-      })
-      .catch(() => {});
-  }, []);
-
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Groq vision cap: base64 payload must stay under 4 MB
+    if (file.size > 3.5 * 1024 * 1024) {
+      setAnalyzeError("Photo is too large (max 3.5 MB). Please choose a smaller image.");
+      return;
+    }
+    setAnalyzeError("");
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result as string);
     reader.readAsDataURL(file);
@@ -116,6 +112,7 @@ export default function ReportPage() {
     setImagePreview(null);
     setDescription("");
     setBookingError("");
+    setAnalyzeError("");
   };
 
   return (
@@ -136,7 +133,7 @@ export default function ReportPage() {
               <h1 className="text-[clamp(1.8rem,6vw,2.8rem)] font-black leading-tight tracking-tight text-gray-950 mb-2">
                 What needs fixing?
               </h1>
-              <p className="text-gray-500 text-sm">Describe the issue or upload a photo. Gemini will triage it instantly.</p>
+              <p className="text-gray-500 text-sm">Describe the issue or upload a photo. iSabi AI will assess it instantly.</p>
             </div>
 
             {/* Photo upload */}
@@ -151,7 +148,7 @@ export default function ReportPage() {
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-2xl">📷</span>
                     <span className="text-sm font-semibold text-gray-500 group-hover:text-green-700">Tap to add a photo</span>
-                    <span className="text-xs text-gray-400">Optional — helps Gemini diagnose faster</span>
+                    <span className="text-xs text-gray-400">Optional — helps iSabi AI diagnose faster</span>
                   </div>
                 )
               }
@@ -168,13 +165,8 @@ export default function ReportPage() {
 
             {/* Location */}
             <div>
-              <LocationInput
-                label="Your Location"
-                value={location}
-                onChange={setLocation}
-                placeholder="e.g. Yaba, Lagos"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900"
-              />
+              <label className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2 block">Your Location</label>
+              <LocationAutocomplete defaultValue={location} onPlaceSelect={(p) => setLocation(p.formatted_address || p.name)} />
             </div>
 
             {/* Language */}
@@ -204,7 +196,7 @@ export default function ReportPage() {
               className="w-full py-4 bg-green-700 text-white font-black text-base hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
             >
               {isAnalyzing && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-              {isAnalyzing ? "Analyzing…" : "Analyze with Gemini →"}
+              {isAnalyzing ? "Analyzing…" : "Analyze with iSabi AI →"}
             </button>
 
             {analyzeError && (
@@ -222,7 +214,7 @@ export default function ReportPage() {
             <div className="border border-gray-200 p-5">
               <div className="flex items-center gap-2 mb-4">
                 <span className="flex h-6 w-6 items-center justify-center bg-green-700 text-[9px] font-black text-white">AI</span>
-                <span className="text-xs font-black uppercase tracking-widest text-gray-400">Gemini Diagnosis</span>
+                <span className="text-xs font-black uppercase tracking-widest text-gray-400">iSabi AI Diagnosis</span>
                 {diagnosisResult.urgency && (
                   <span className={`ml-auto text-[10px] font-black uppercase px-2 py-0.5 ${URGENCY_COLOR[diagnosisResult.urgency] ?? "bg-gray-100 text-gray-600"}`}>
                     {diagnosisResult.urgency}
@@ -290,7 +282,7 @@ export default function ReportPage() {
                             <Image unoptimized src={artisan.avatar} alt={artisan.fullName} width={48} height={48} className="object-cover border border-gray-200" />
                           ) : (
                             <div className="w-12 h-12 border border-gray-200 bg-gray-100 flex items-center justify-center">
-                              <span className="text-lg font-black text-gray-400">{artisan.fullName.charAt(0)}</span>
+                              <span className="text-lg font-black text-gray-400">{( artisan.fullName ?? "?" ).charAt(0)}</span>
                             </div>
                           )}
                           {artisan.isVerified && (
@@ -301,6 +293,11 @@ export default function ReportPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-black text-gray-950 text-sm">{artisan.fullName}</h4>
                             <span className="text-[10px] font-black text-green-700 bg-green-50 px-1.5 py-0.5">{artisan.trustScore}% Trust</span>
+                            {artisan.badge && artisan.badge !== "Newbie" && (
+                              <span className={`text-[10px] font-black px-1.5 py-0.5 ${artisan.badge === "iSabi Pro" ? "bg-yellow-100 text-yellow-700" : "bg-blue-50 text-blue-600"}`}>
+                                {artisan.badge === "iSabi Pro" ? "⭐ iSabi Pro" : "✓ Verified"}
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-gray-500 mt-0.5">{artisan.category} · {artisan.location}</p>
                         </div>

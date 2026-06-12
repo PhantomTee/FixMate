@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSideClient, createServiceClient } from "@/lib/supabase";
+import { notifyArtisanOfJob } from "@/lib/whatsapp-bot";
 
 const USER_FEE_PCT    = 0.02;   // 2% added to user's charge
 const ARTISAN_FEE_PCT = 0.10;   // 10% deducted from artisan payout
@@ -54,14 +55,25 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Update job with selected artisan + booking id
-  await service
+  const { data: updatedJob } = await service
     .from("job_requests")
     .update({
       selected_artisan_id: artisanId,
       booking_id:          booking.id,
       status:              "booking_created",
     })
-    .eq("id", jobId);
+    .eq("id", jobId)
+    .select("description, location")
+    .single();
+
+  // Notify artisan via WhatsApp (fire-and-forget)
+  void notifyArtisanOfJob({
+    artisanId,
+    bookingId:   booking.id,
+    description: updatedJob?.description ?? "",
+    location:    updatedJob?.location    ?? "",
+    quoteAmount,
+  });
 
   return NextResponse.json(booking, { status: 201 });
 }

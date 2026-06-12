@@ -84,7 +84,7 @@ const CATEGORIES = [
 ];
 
 const HOW_IT_WORKS = [
-  { n: "01", title: "Describe your job",       body: "Tell us what needs fixing — type it out or upload a photo. Our AI triages the issue instantly." },
+  { n: "01", title: "Describe your job",       body: "Tell us what needs fixing — type it out or upload a photo. Our AI assesses the issue instantly." },
   { n: "02", title: "Get matched to artisans", body: "We match you with verified, reviewed artisans in your area who specialise in your job type." },
   { n: "03", title: "Pay when it's done",       body: "Funds held in secure escrow are released to the artisan only after you confirm completion." },
 ];
@@ -421,7 +421,7 @@ export default function HomePage() {
         </div>
         <div className="max-w-7xl mx-auto mt-10 pt-6 border-t border-gray-100 flex flex-col sm:flex-row justify-between gap-2 text-xs text-gray-300">
           <span>© {new Date().getFullYear()} iSabi. All rights reserved.</span>
-          <span>Secured by OPay Escrow · AI-powered by Google Gemini</span>
+          <span>Secured by OPay Escrow · AI-powered by iSabi AI</span>
         </div>
       </footer>
     </div>

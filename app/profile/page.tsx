@@ -1,417 +1,498 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import LocationInput from "@/components/LocationInput";
-import { createClient } from "@/lib/supabase";
+import JobChat from "@/components/JobChat";
+import RatingWidget from "@/components/RatingWidget";
+import {
+  loadUserDb,
+  performEscrowAction,
+  saveReview,
+  subscribeBooking,
+} from "@/lib/api";
+import { Booking, DiagnosisRecord, EscrowTransaction, iSabiDB, JobRequest } from "@/lib/types";
 
-interface UserProfile {
-  id: string;
-  name: string;
-  phone: string | null;
-  location: string;
-  avatar?: string | null;
-  nin?: string | null;
-  nin_verified?: boolean;
+const naira = (v: number) => `₦${v.toLocaleString()}`;
+
+const STATUS_BADGE: Record<string, string> = {
+  funded:      "bg-yellow-100 text-yellow-700",
+  accepted:    "bg-blue-100 text-blue-700",
+  in_progress: "bg-purple-100 text-purple-700",
+  completed:   "bg-green-100 text-green-700",
+  released:    "bg-green-50 text-green-800",
+  disputed:    "bg-red-100 text-red-700",
+  not_funded:  "bg-gray-100 text-gray-500",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  funded:      "Escrow funded",
+  accepted:    "Artisan accepted",
+  in_progress: "In progress",
+  completed:   "Job complete — pending release",
+  released:    "Payment released",
+  disputed:    "Disputed",
+  not_funded:  "Awaiting payment",
+};
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
 }
 
-function PencilIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-    </svg>
-  );
-}
-
-function CameraIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
-      <circle cx="12" cy="13" r="4" />
-    </svg>
-  );
-}
-
-function CheckIcon({ size = 10 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
+interface UserProfile { id: string; name: string; phone: string; location: string }
 
 export default function ProfilePage() {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [authEmail, setAuthEmail] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [avatarError, setAvatarError] = useState("");
-  const [error, setError] = useState("");
-
-  // Edit-mode fields
+  // Profile / settings state
+  const [profile, setProfile]   = useState<UserProfile | null>(null);
   const [editName, setEditName] = useState("");
-  const [editLocation, setEditLocation] = useState("");
-  const [editNin, setEditNin] = useState("");
-  const [editAvatar, setEditAvatar] = useState("");
+  const [editLoc, setEditLoc]   = useState("");
+  const [saving, setSaving]     = useState(false);
+  const [saveOk, setSaveOk]     = useState(false);
+  const [saveErr, setSaveErr]   = useState("");
 
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data: { user?: UserProfile | null; email?: string | null }) => {
-        if (!data.user) {
-          router.push("/auth?next=/profile");
-          return;
-        }
-        setProfile(data.user);
-        setAuthEmail(data.email ?? "");
-        setEditName(data.user.name ?? "");
-        setEditLocation(data.user.location ?? "");
-        setEditNin(data.user.nin ?? "");
-        setEditAvatar(data.user.avatar ?? "");
-      })
-      .catch(() => router.push("/auth?next=/profile"))
-      .finally(() => setLoading(false));
+  // Dashboard state
+  const [db, setDb]               = useState<iSabiDB | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [reviewText, setReviewText]       = useState("");
+  const [disputeOpen, setDisputeOpen]     = useState(false);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [disputeLoading, setDisputeLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await loadUserDb();
+      setDb(data);
+    } catch {
+      /* unauthenticated — redirect to auth */
+      router.push("/auth?next=/profile");
+      return;
+    }
+    setLoading(false);
   }, [router]);
 
-  const startEdit = () => {
-    setEditName(profile?.name ?? "");
-    setEditLocation(profile?.location ?? "");
-    setEditNin(profile?.nin ?? "");
-    setEditAvatar(profile?.avatar ?? "");
-    setError("");
-    setEditing(true);
-  };
+  useEffect(() => {
+    // Load profile settings
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data: { user?: UserProfile | null }) => {
+        if (!data.user) { router.push("/auth?next=/profile"); return; }
+        setProfile(data.user);
+        setEditName(data.user.name ?? "");
+        setEditLoc(data.user.location ?? "");
+      })
+      .catch(() => router.push("/auth?next=/profile"));
 
-  const cancelEdit = () => {
-    setError("");
-    setAvatarError("");
-    setEditing(false);
-  };
+    refresh();
+  }, [router, refresh]);
 
-  const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/");
-  };
+  const data = useMemo(() => {
+    if (!db) return null;
+    const user = db.users[0];
+    if (!user) return null;
+    const jobs    = db.job_requests;
+    const active  = jobs.find((j) => !["released", "refunded", "declined"].includes(j.status)) ?? jobs[0];
+    const booking = active?.bookingId ? db.bookings.find((b) => b.id === active.bookingId) : undefined;
+    const diagnosis = active ? db.diagnoses.find((d) => d.id === active.diagnosisId) : undefined;
+    const artisan   = active?.selectedArtisanId ? db.artisans.find((a) => a.id === active.selectedArtisanId) : undefined;
+    const transactions = db.escrow_transactions.filter((tx) => !booking || tx.bookingId === booking.id).slice(0, 5);
+    return { user, jobs, active, booking, diagnosis, artisan, transactions };
+  }, [db]);
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setAvatarError("");
-    // Instant local preview
-    const reader = new FileReader();
-    reader.onloadend = () => setEditAvatar(reader.result as string);
-    reader.readAsDataURL(file);
+  useEffect(() => {
+    const bookingId = data?.booking?.id;
+    if (!bookingId) return;
+    const channel = subscribeBooking(bookingId, (updated) => {
+      setDb((prev) => {
+        if (!prev) return prev;
+        return { ...prev, bookings: prev.bookings.map((b) => (b.id === updated.id ? updated : b)) };
+      });
+    });
+    return () => { channel.unsubscribe(); };
+  }, [data?.booking?.id]);
 
-    setUploadingAvatar(true);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/auth/avatar", { method: "POST", body: form });
-      const data = await res.json() as { url?: string; error?: string };
-      if (!res.ok || !data.url) throw new Error(data.error ?? "Upload failed");
-      setEditAvatar(data.url);
-    } catch {
-      setAvatarError("Photo upload failed — your preview is shown but won't be saved.");
-    } finally {
-      setUploadingAvatar(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!editName.trim()) { setError("Name is required."); return; }
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
     setSaving(true);
-    setError("");
+    setSaveErr("");
+    setSaveOk(false);
     try {
       const res = await fetch("/api/auth/me", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name:     editName.trim(),
-          location: editLocation,
-          phone:    profile?.phone ?? "",
-          nin:      editNin,
-          avatar:   editAvatar,
-        }),
+        body: JSON.stringify({ name: editName, location: editLoc, phone: profile?.phone ?? "" }),
       });
-      const data = await res.json() as { error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Failed to save.");
-      setProfile((prev) =>
-        prev
-          ? {
-              ...prev,
-              name:         editName.trim(),
-              location:     editLocation,
-              avatar:       editAvatar,
-              nin:          editNin,
-              nin_verified: prev.nin_verified || editNin.length === 11,
-            }
-          : prev
-      );
-      setEditing(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+      const d = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(d.error ?? "Failed to update profile");
+      setSaveOk(true);
+      setProfile((p) => p ? { ...p, name: editName, location: editLoc } : p);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setSaveErr(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setSaving(false);
     }
   };
 
+  const run = async (action: "user_release") => {
+    if (!data?.booking) return;
+    try {
+      const updated = await performEscrowAction(data.booking.id, action, "");
+      setDb((prev) => prev ? { ...prev, bookings: prev.bookings.map((b) => (b.id === updated.id ? updated : b)) } : prev);
+    } catch { /* ignore */ }
+  };
+
+  const submitDispute = async () => {
+    if (!data?.booking || !data?.active || !disputeReason.trim()) return;
+    setDisputeLoading(true);
+    try {
+      await fetch("/api/disputes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId: data.booking.id,
+          jobId:     data.active.id,
+          artisanId: data.booking.artisanId,
+          reason:    disputeReason.trim(),
+        }),
+      });
+      setDisputeOpen(false);
+      setDisputeReason("");
+      await refresh();
+    } catch { /* ignore */ } finally {
+      setDisputeLoading(false);
+    }
+  };
+
+  const submitReview = async () => {
+    if (!data?.active || !reviewText.trim()) return;
+    try {
+      await saveReview(data.active.id, 5, reviewText.trim());
+      setReviewText("");
+    } catch { /* ignore */ }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <span className="w-6 h-6 border-2 border-green-600/30 border-t-green-600 rounded-full animate-spin" />
+        <span className="w-6 h-6 border-2 border-gray-200 border-t-green-600 rounded-full animate-spin" />
       </div>
     );
   }
 
-  const initials = (profile?.name ?? "?")
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-
-  const avatarSrc = editing ? editAvatar : (profile?.avatar ?? "");
-  const isVerified = profile?.nin_verified || (editing && editNin.length === 11);
-  const maskedNin = profile?.nin
-    ? profile.nin.slice(0, 3) + "•".repeat(Math.max(0, profile.nin.length - 3))
-    : "";
+  const user       = data?.user;
+  const jobs       = data?.jobs ?? [];
+  const active     = data?.active;
+  const booking    = data?.booking;
+  const diagnosis  = data?.diagnosis;
+  const artisan    = data?.artisan;
+  const transactions = data?.transactions ?? [];
+  const canRelease = booking?.escrowStatus === "completed";
+  const escrow     = booking?.escrowStatus;
+  const firstName  = profile?.name?.split(" ")[0] ?? "";
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
 
-      {/* Sticky top bar */}
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 py-3.5 flex items-center justify-between">
-        <Link
-          href="/dashboard"
-          className="text-sm font-black text-gray-400 hover:text-gray-950 transition-colors"
-        >
-          ← Back
-        </Link>
-        <span className="text-sm font-black text-gray-950">Profile</span>
-
-        {editing ? (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={cancelEdit}
-              className="text-xs font-black text-gray-400 hover:text-gray-950 transition-colors px-2 py-1"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-1.5 bg-green-600 text-white text-xs font-black px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-40"
-            >
-              {saving ? (
-                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <CheckIcon size={11} />
-              )}
-              {saving ? "Saving…" : "Save"}
-            </button>
+      {/* ── Avatar + stats header ── */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="max-w-lg mx-auto px-4 pt-6 pb-5">
+          <div className="flex items-center gap-4">
+            {/* Avatar circle */}
+            <div className="w-16 h-16 rounded-full bg-green-700 flex items-center justify-center text-white text-2xl font-black shrink-0 select-none">
+              {(profile?.name ?? "?").charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl font-black text-gray-950 leading-tight truncate">
+                {greeting()}, {firstName}
+              </h1>
+              {profile?.location && <p className="text-xs text-gray-400 mt-0.5 font-semibold truncate">{profile.location}</p>}
+              {profile?.phone   && <p className="text-xs text-gray-400 font-mono">{profile.phone}</p>}
+            </div>
+            <Link href="/report"
+              className="shrink-0 bg-green-700 text-white text-xs font-black px-3 py-2 rounded-xl hover:bg-green-800 transition-colors">
+              + New Job
+            </Link>
           </div>
-        ) : (
-          <button
-            onClick={startEdit}
-            className="p-2 text-gray-400 hover:text-gray-950 hover:bg-gray-50 rounded-lg transition-colors"
-            aria-label="Edit profile"
-          >
-            <PencilIcon />
-          </button>
-        )}
+
+          {/* Stats strip */}
+          {user && (
+            <div className="mt-4 border-t border-gray-100 pt-4 grid grid-cols-3 gap-2">
+              <div className="text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Wallet</p>
+                <p className="text-base font-black text-gray-950 mt-0.5">{naira(user.user_wallet_balance)}</p>
+              </div>
+              <div className="text-center border-x border-gray-100">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Escrowed</p>
+                <p className="text-base font-black text-yellow-600 mt-0.5">{naira(user.escrow_balance)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Jobs</p>
+                <p className="text-base font-black text-gray-950 mt-0.5">{jobs.length}</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="max-w-sm mx-auto px-4 py-8 space-y-4">
+      <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
 
-        {error && (
-          <div className="bg-red-50 border border-red-100 px-4 py-3 rounded-xl text-xs text-red-700 font-semibold">
-            {error}
-          </div>
-        )}
-
-        {/* Avatar + name card */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col items-center gap-3">
-
-          {/* Avatar */}
-          <div className="relative">
-            <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-100 bg-gray-100 flex items-center justify-center shrink-0">
-              {avatarSrc ? (
-                <img
-                  src={avatarSrc}
-                  alt="Profile photo"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-3xl font-black text-gray-400">{initials}</span>
-              )}
+        {/* ── Active Job ── */}
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Active Job</p>
+          {!active || !diagnosis ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+              <p className="text-sm font-semibold text-gray-400 mb-4">No active job right now.</p>
+              <Link href="/report"
+                className="inline-block bg-green-600 text-white text-sm font-black px-5 py-2.5 rounded-xl hover:bg-green-700 transition-colors">
+                Report New Issue →
+              </Link>
             </div>
-
-            {editing && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingAvatar}
-                  className="absolute bottom-0.5 right-0.5 w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-green-700 transition-colors disabled:opacity-60 border-2 border-white"
-                  aria-label="Change photo"
-                >
-                  {uploadingAvatar ? (
-                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <CameraIcon />
-                  )}
-                </button>
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={fileInputRef}
-                  onChange={handleAvatarChange}
-                  className="hidden"
-                />
-              </>
-            )}
-          </div>
-          {avatarError && (
-            <p className="text-[10px] text-red-600 font-semibold text-center max-w-[200px]">{avatarError}</p>
-          )}
-
-          {/* Name */}
-          {editing ? (
-            <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              className="text-center text-xl font-black text-gray-950 border-b-2 border-green-600 outline-none bg-transparent w-full pb-1"
-              placeholder="Full name"
-            />
           ) : (
-            <h1 className="text-xl font-black text-gray-950 text-center">{profile?.name}</h1>
-          )}
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-black text-gray-950 text-base leading-snug">{diagnosis.issue_title}</h2>
+                  <p className="text-xs text-gray-400 mt-0.5 font-semibold">
+                    {artisan?.fullName ?? "No artisan yet"} · {active.location}
+                  </p>
+                </div>
+                <div className="text-right shrink-0 space-y-1">
+                  {booking && <p className="font-black text-gray-950 text-lg leading-none">{naira(booking.quoteAmount)}</p>}
+                  {escrow && (
+                    <span className={`inline-block rounded-full text-[10px] font-black px-2.5 py-1 ${STATUS_BADGE[escrow] ?? "bg-gray-100 text-gray-500"}`}>
+                      {STATUS_LABEL[escrow] ?? escrow.replaceAll("_", " ")}
+                    </span>
+                  )}
+                </div>
+              </div>
 
-          {/* Verified badge */}
-          {isVerified && (
-            <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[10px] font-black px-3 py-1 rounded-full border border-green-200">
-              <CheckIcon />
-              ID Verified
-            </span>
+              {booking ? (
+                <div className="space-y-2 border-t border-gray-100 pt-4">
+                  {canRelease && (
+                    <>
+                      <button onClick={() => run("user_release")}
+                        className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors">
+                        Release Payment →
+                      </button>
+                      <button onClick={() => setDisputeOpen(true)}
+                        className="w-full py-2.5 border border-red-200 text-red-600 text-sm font-black rounded-xl hover:bg-red-50 transition-colors">
+                        Open Dispute
+                      </button>
+                    </>
+                  )}
+
+                  {(escrow === "funded" || escrow === "accepted" || escrow === "in_progress") && (
+                    <>
+                      <div className="w-full py-3 bg-gray-100 text-gray-400 text-sm font-black rounded-xl text-center select-none">
+                        {escrow === "funded"      && "Waiting for artisan to accept"}
+                        {escrow === "accepted"    && "Waiting for artisan to start"}
+                        {escrow === "in_progress" && "Waiting for artisan to complete"}
+                      </div>
+                      <button onClick={() => setDisputeOpen(true)}
+                        className="w-full py-2 border border-red-200 text-red-600 text-xs font-black rounded-xl hover:bg-red-50 transition-colors">
+                        Open Dispute
+                      </button>
+                    </>
+                  )}
+
+                  {escrow === "not_funded" && (
+                    <Link href={`/booking?bookingId=${booking.id}`}
+                      className="block w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors text-center">
+                      Pay Now →
+                    </Link>
+                  )}
+
+                  {escrow === "released" && (
+                    <>
+                      <Link href={`/booking?bookingId=${booking.id}`}
+                        className="block w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors text-center">
+                        View Booking Details →
+                      </Link>
+                      {artisan && (
+                        <RatingWidget
+                          bookingId={booking.id}
+                          artisanId={artisan.id}
+                          artisanName={artisan.fullName ?? "Artisan"}
+                        />
+                      )}
+                      {!artisan && active.status === "released" && (
+                        <div className="flex gap-2 pt-1">
+                          <input value={reviewText} onChange={(e) => setReviewText(e.target.value)}
+                            placeholder="Leave a review for the artisan…"
+                            className="flex-1 border border-gray-200 px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 rounded-xl" />
+                          <button onClick={submitReview}
+                            className="bg-green-600 px-4 py-2 text-sm font-black text-white hover:bg-green-700 transition-colors rounded-xl">
+                            Submit
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {escrow === "disputed" && (
+                    <div className="w-full py-3 bg-red-50 border border-red-200 text-red-700 text-sm font-black rounded-xl text-center select-none">
+                      Dispute under review
+                    </div>
+                  )}
+
+                  <Link href={`/booking?bookingId=${booking.id}`}
+                    className="block text-center text-xs font-black text-gray-400 hover:text-gray-600 transition-colors pt-1">
+                    View full booking ↗
+                  </Link>
+                </div>
+              ) : (
+                <div className="border-t border-gray-100 pt-4">
+                  <Link href="/report"
+                    className="block w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors text-center">
+                    View Booking →
+                  </Link>
+                </div>
+              )}
+
+              <details className="border-t border-gray-100 pt-3">
+                <summary className="text-[10px] font-black uppercase tracking-widest text-gray-400 cursor-pointer select-none list-none flex items-center justify-between">
+                  <span>Messages</span>
+                  <span className="text-gray-300">▾</span>
+                </summary>
+                <div className="mt-3">
+                  <JobChat jobId={active.id} currentUserType="user" />
+                </div>
+              </details>
+            </div>
           )}
         </div>
 
-        {/* Info fields */}
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
-
-          {/* Email */}
-          <div className="px-5 py-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Email</p>
-            <p className="text-sm font-semibold text-gray-700 truncate">{authEmail || "—"}</p>
-          </div>
-
-          {/* Phone */}
-          <div className="px-5 py-4">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Phone</p>
-              {editing && (
-                <span className="text-[10px] text-gray-400 font-semibold">Contact support to update</span>
+        {/* ── Activity & History ── */}
+        <details className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <summary className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 cursor-pointer select-none list-none flex items-center justify-between hover:bg-gray-50 transition-colors">
+            <span>Activity &amp; History</span>
+            <span className="text-gray-300">▾</span>
+          </summary>
+          <div className="px-5 pb-5 space-y-5 border-t border-gray-100 pt-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Recent Transactions</p>
+              {transactions.length === 0 ? (
+                <p className="text-xs text-gray-400 font-semibold py-3 text-center">No transactions yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {transactions.map((tx) => <TxRow key={tx.id} tx={tx} />)}
+                </div>
               )}
             </div>
-            <p className="text-sm font-semibold text-gray-700">{profile?.phone || "—"}</p>
-          </div>
-
-          {/* Location */}
-          <div className="px-5 py-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Location</p>
-            {editing ? (
-              <LocationInput
-                value={editLocation}
-                onChange={setEditLocation}
-                placeholder="e.g. Ikeja, Lagos"
-              />
-            ) : (
-              <p className="text-sm font-semibold text-gray-700">
-                {profile?.location || <span className="text-gray-400 font-normal">Not set</span>}
-              </p>
-            )}
-          </div>
-
-          {/* NIN */}
-          <div className="px-5 py-4">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                National ID (NIN)
-              </p>
-              {(profile?.nin_verified || (editing && editNin.length === 11)) && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
-                  <CheckIcon />
-                  Verified
-                </span>
-              )}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">All Jobs</p>
+              <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 overflow-hidden">
+                {jobs.length === 0 ? (
+                  <p className="text-xs text-gray-400 font-semibold py-4 text-center">No jobs yet.</p>
+                ) : (
+                  jobs.map((job) => {
+                    const d = db!.diagnoses.find((x) => x.id === job.diagnosisId);
+                    const b = job.bookingId ? db!.bookings.find((x) => x.id === job.bookingId) : undefined;
+                    return <JobRow key={job.id} job={job} diagnosis={d} booking={b} />;
+                  })
+                )}
+              </div>
             </div>
-            {editing ? (
-              <>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={editNin}
-                  onChange={(e) =>
-                    setEditNin(e.target.value.replace(/\D/g, "").slice(0, 11))
-                  }
-                  placeholder="11-digit NIN"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900 tracking-widest"
-                />
-                <p
-                  className={`text-[10px] mt-1 font-semibold ${
-                    editNin.length === 11 ? "text-green-600" : "text-gray-400"
-                  }`}
-                >
-                  {editNin.length}/11 — {editNin.length === 11 ? "Valid ✓" : "Must be 11 digits"}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm font-semibold text-gray-700 tracking-widest">
-                {maskedNin || <span className="text-gray-400 font-normal tracking-normal">Not provided</span>}
-              </p>
-            )}
           </div>
+        </details>
+
+        {/* ── Account Settings ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Account Settings</p>
+          </div>
+          <form onSubmit={handleSave} className="px-5 py-5 space-y-4">
+            {saveErr && (
+              <div className="bg-red-50 border border-red-100 px-4 py-3 rounded-xl text-xs text-red-700 font-semibold">{saveErr}</div>
+            )}
+            {saveOk && (
+              <div className="bg-green-50 border border-green-100 px-4 py-3 rounded-xl text-xs text-green-700 font-semibold">Profile updated!</div>
+            )}
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Full name</label>
+              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
+                placeholder="Ada Okonkwo"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900"
+                required />
+            </div>
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">City / area</label>
+              <input type="text" value={editLoc} onChange={(e) => setEditLoc(e.target.value)}
+                placeholder="Ikeja, Lagos"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Phone number</label>
+              <p className="w-full border border-gray-100 rounded-xl px-4 py-3 text-sm font-semibold text-gray-400 bg-gray-50 select-none">
+                {profile?.phone ?? "—"}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-1">Phone cannot be changed after registration.</p>
+            </div>
+            <button type="submit" disabled={saving}
+              className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+              {saving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              {saving ? "Saving…" : "Save changes →"}
+            </button>
+          </form>
         </div>
 
-        {/* Edit CTA + Sign Out (view mode only) */}
-        {!editing && (
-          <>
-            <button
-              onClick={startEdit}
-              className="w-full py-3.5 border-2 border-dashed border-gray-200 text-xs font-black text-gray-400 hover:border-green-600 hover:text-green-700 transition-colors rounded-xl flex items-center justify-center gap-2"
-            >
-              <PencilIcon />
-              Edit Profile
-            </button>
-            <button
-              onClick={handleSignOut}
-              className="w-full py-3 text-xs font-black text-red-500 hover:text-red-700 transition-colors rounded-xl"
-            >
-              Sign Out
-            </button>
-          </>
-        )}
+      </main>
 
-      </div>
-
-      {/* Saved toast */}
-      {saved && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-950 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2 whitespace-nowrap">
-          <CheckIcon size={12} />
-          Changes saved!
+      {/* ── Dispute modal ── */}
+      {disputeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl border border-gray-100 w-full max-w-sm p-6 space-y-4">
+            <div>
+              <h2 className="font-black text-gray-950">Open a Dispute</h2>
+              <p className="text-xs text-gray-400 mt-1 font-semibold">Describe the issue. Our team reviews disputes within 24 hours.</p>
+            </div>
+            <textarea value={disputeReason} onChange={(e) => setDisputeReason(e.target.value)}
+              placeholder="e.g. Artisan did not complete the work as agreed…"
+              rows={4}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-red-400 resize-none text-gray-900" />
+            <div className="flex gap-2">
+              <button onClick={() => { setDisputeOpen(false); setDisputeReason(""); }}
+                className="flex-1 py-3 border border-gray-200 text-gray-600 text-sm font-black rounded-xl hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button onClick={submitDispute} disabled={disputeLoading || !disputeReason.trim()}
+                className="flex-1 py-3 bg-red-600 text-white text-sm font-black rounded-xl hover:bg-red-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+                {disputeLoading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {disputeLoading ? "Submitting…" : "Submit Dispute"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+function TxRow({ tx }: { tx: EscrowTransaction }) {
+  return (
+    <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
+      <div>
+        <p className="text-xs font-black text-gray-950 capitalize">{tx.action.replaceAll("_", " ")}</p>
+        <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{tx.reference}</p>
+      </div>
+      <p className="text-sm font-black text-gray-950">{naira(tx.amount)}</p>
+    </div>
+  );
+}
+
+function JobRow({ job, diagnosis, booking }: { job: JobRequest; diagnosis?: DiagnosisRecord; booking?: Booking }) {
+  return (
+    <Link href={booking ? `/booking?bookingId=${booking.id}` : "/report"}
+      className="flex items-center justify-between py-3 px-4 hover:bg-gray-50 transition-colors">
+      <div className="min-w-0">
+        <p className="text-xs font-black text-gray-950 truncate">{diagnosis?.issue_title ?? job.description}</p>
+        <p className="text-[10px] text-gray-400 font-semibold capitalize mt-0.5">{job.status.replaceAll("_", " ")}</p>
+      </div>
+      <p className="text-xs font-black text-gray-950 shrink-0 ml-3">{booking ? naira(booking.quoteAmount) : "—"}</p>
+    </Link>
   );
 }

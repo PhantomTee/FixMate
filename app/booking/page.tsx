@@ -228,7 +228,7 @@ export default function BookingPage() {
         {artisan.avatar
           ? <Image unoptimized src={artisan.avatar} alt={artisan.fullName} width={52} height={52} className="w-13 h-13 rounded-full object-cover border-2 border-green-100 shrink-0" />
           : <div className="w-13 h-13 w-[52px] h-[52px] rounded-full bg-gradient-to-br from-green-400 to-green-700 flex items-center justify-center shrink-0">
-              <span className="text-xl font-black text-white">{artisan.fullName.charAt(0)}</span>
+              <span className="text-xl font-black text-white">{( artisan.fullName ?? "?" ).charAt(0)}</span>
             </div>
         }
         <div className="flex-1 min-w-0">
@@ -331,7 +331,7 @@ export default function BookingPage() {
       {artisan.avatar
         ? <Image unoptimized src={artisan.avatar} alt={artisan.fullName} width={36} height={36} className="w-9 h-9 rounded-full object-cover border-2 border-white/20" />
         : <div className="w-9 h-9 rounded-full bg-green-600 flex items-center justify-center text-sm font-black text-white shrink-0">
-            {artisan.fullName.charAt(0)}
+            {( artisan.fullName ?? "?" ).charAt(0)}
           </div>
       }
       <div className="flex-1 min-w-0">
