@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import JobChat from "@/components/JobChat";
 import {
@@ -69,6 +69,77 @@ export default function ArtisanDashboardPage() {
   const [txLoading, setTxLoading] = useState(false);
   const [txLoaded, setTxLoaded] = useState(false);
   const [payoutMsg, setPayoutMsg] = useState("");
+
+  // Before / after photo state: { [bookingId]: { before: base64|"", after: base64|"" } }
+  const [photoMap, setPhotoMap] = useState<Record<string, { before: string; after: string }>>({});
+  const [photoLoading, setPhotoLoading] = useState<Record<string, boolean>>({});
+  const beforeInputRef = useRef<HTMLInputElement>(null);
+  const afterInputRef  = useRef<HTMLInputElement>(null);
+  const [activePhotoBookingId, setActivePhotoBookingId] = useState<string | null>(null);
+  const [photoType, setPhotoType] = useState<"before" | "after">("before");
+
+  const triggerPhoto = (bookingId: string, type: "before" | "after") => {
+    setActivePhotoBookingId(bookingId);
+    setPhotoType(type);
+    if (type === "before") beforeInputRef.current?.click();
+    else                   afterInputRef.current?.click();
+  };
+
+  const handlePhotoFile = async (e: React.ChangeEvent<HTMLInputElement>, type: "before" | "after") => {
+    const file = e.target.files?.[0];
+    const bookingId = activePhotoBookingId;
+    if (!file || !bookingId) return;
+    e.target.value = "";
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+      setPhotoMap((p) => ({
+        ...p,
+        [bookingId]: { ...p[bookingId], [type]: base64 },
+      }));
+
+      if (type === "after") {
+        // Upload the after photo, which triggers payment request
+        setPhotoLoading((p) => ({ ...p, [bookingId]: true }));
+        try {
+          const res = await fetch(`/api/bookings/${bookingId}/photos`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ type: "after", photo: base64 }),
+          });
+          if (res.ok) {
+            // Refresh booking status
+            const updated = await res.json() as { escrow_status: string };
+            setData((prev) => {
+              if (!prev) return prev;
+              const existing = prev.bookings[bookingId];
+              return {
+                ...prev,
+                bookings: {
+                  ...prev.bookings,
+                  [bookingId]: {
+                    ...existing,
+                    escrowStatus: updated.escrow_status as Booking["escrowStatus"],
+                  },
+                },
+              };
+            });
+          }
+        } catch { /* ignore */ } finally {
+          setPhotoLoading((p) => ({ ...p, [bookingId]: false }));
+        }
+      } else {
+        // Just upload before photo silently
+        fetch(`/api/bookings/${bookingId}/photos`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ type: "before", photo: base64 }),
+        }).catch(() => {});
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Bank + payout state
   const [banks, setBanks] = useState<Array<{ name: string; code: string }>>([]);
@@ -353,6 +424,12 @@ export default function ArtisanDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-16">
+      {/* Hidden photo file inputs */}
+      <input ref={beforeInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+        onChange={(e) => handlePhotoFile(e, "before")} />
+      <input ref={afterInputRef}  type="file" accept="image/*" capture="environment" className="hidden"
+        onChange={(e) => handlePhotoFile(e, "after")} />
+
       {/* Header */}
       <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2.5">
@@ -506,20 +583,47 @@ export default function ArtisanDashboardPage() {
                                 </button>
                               )}
                               {canProgress && (
-                                <button
-                                  onClick={() => run(booking.id, "mark_in_progress")}
-                                  className="w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors"
-                                >
-                                  Mark In Progress →
-                                </button>
+                                <>
+                                  {/* Before photo — optional on arrival */}
+                                  <button
+                                    onClick={() => triggerPhoto(booking.id, "before")}
+                                    className={`w-full py-2.5 border text-xs font-black rounded-xl transition-colors ${
+                                      photoMap[booking.id]?.before
+                                        ? "border-green-300 text-green-700 bg-green-50"
+                                        : "border-gray-200 text-gray-500 hover:border-green-400"
+                                    }`}
+                                  >
+                                    {photoMap[booking.id]?.before ? "✓ Before photo taken" : "📷 Take Before Photo (optional)"}
+                                  </button>
+                                  <button
+                                    onClick={() => run(booking.id, "mark_in_progress")}
+                                    className="w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors"
+                                  >
+                                    Mark In Progress →
+                                  </button>
+                                </>
                               )}
                               {canComplete && (
-                                <button
-                                  onClick={() => run(booking.id, "mark_completed")}
-                                  className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors"
-                                >
-                                  Mark Completed ✓
-                                </button>
+                                <>
+                                  {/* After photo required to request payment */}
+                                  {!photoMap[booking.id]?.after ? (
+                                    <button
+                                      onClick={() => triggerPhoto(booking.id, "after")}
+                                      className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors"
+                                    >
+                                      📷 Upload After Photo → Request Payment
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => run(booking.id, "mark_completed")}
+                                      disabled={photoLoading[booking.id]}
+                                      className="w-full py-3 bg-green-600 text-white text-sm font-black rounded-xl hover:bg-green-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                                    >
+                                      {photoLoading[booking.id] && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                                      {photoLoading[booking.id] ? "Sending request…" : "✓ After photo done — Request Payment"}
+                                    </button>
+                                  )}
+                                </>
                               )}
                               {escrow === "completed" && (
                                 <div className="w-full py-3 bg-gray-100 text-gray-400 text-sm font-black rounded-xl text-center select-none">

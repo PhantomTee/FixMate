@@ -20,7 +20,7 @@ export default function WhatsAppFAB() {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-5 right-5 z-50 flex items-center gap-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-black px-4 py-3 shadow-lg transition-all hover:shadow-xl hover:scale-105 active:scale-95"
+      className="fixed bottom-20 right-4 md:bottom-5 md:right-5 z-50 flex items-center gap-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-black px-4 py-3 shadow-lg transition-all hover:shadow-xl hover:scale-105 active:scale-95"
       aria-label="Chat on WhatsApp"
     >
       {/* WhatsApp icon */}

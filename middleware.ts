@@ -41,7 +41,7 @@ export async function middleware(request: NextRequest) {
     const isAdmin =
       user.user_metadata?.role === "admin" ||
       adminPhones.includes(user.phone ?? "");
-    if (!isAdmin) return NextResponse.redirect(new URL("/dashboard", request.url));
+    if (!isAdmin) return NextResponse.redirect(new URL("/profile", request.url));
   }
 
   return response;

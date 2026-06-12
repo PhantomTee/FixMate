@@ -293,6 +293,11 @@ export default function ReportPage() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-black text-gray-950 text-sm">{artisan.fullName}</h4>
                             <span className="text-[10px] font-black text-green-700 bg-green-50 px-1.5 py-0.5">{artisan.trustScore}% Trust</span>
+                            {artisan.badge && artisan.badge !== "Newbie" && (
+                              <span className={`text-[10px] font-black px-1.5 py-0.5 ${artisan.badge === "iSabi Pro" ? "bg-yellow-100 text-yellow-700" : "bg-blue-50 text-blue-600"}`}>
+                                {artisan.badge === "iSabi Pro" ? "⭐ iSabi Pro" : "✓ Verified"}
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-gray-500 mt-0.5">{artisan.category} · {artisan.location}</p>
                         </div>

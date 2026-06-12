@@ -67,6 +67,9 @@ function toArtisan(r: Record<string, unknown>): Artisan {
     emergencyAvailable:        (r.emergency_available ?? false) as boolean,
     serviceAreas:              (r.service_areas ?? []) as string[],
     rating:                    r.rating as number | undefined,
+    badge:                     (r.badge ?? "Newbie") as string,
+    calloutFeeNaira:           (r.callout_fee_naira ?? 0) as number,
+    dailyRateNaira:            (r.daily_rate_naira ?? 0) as number,
     createdAt:                 r.created_at as string,
   };
 }
