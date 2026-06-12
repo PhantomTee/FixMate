@@ -8,9 +8,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  experimental: {
-    serverActionsBodySizeLimit: '5mb',
-  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'picsum.photos',       pathname: '/**' },

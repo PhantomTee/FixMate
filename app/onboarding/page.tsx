@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
@@ -38,7 +38,7 @@ function StepDots({ total, current }: { total: number; current: number }) {
   );
 }
 
-export default function OnboardingPage() {
+function OnboardingForm() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const fileRef      = useRef<HTMLInputElement>(null);
@@ -642,5 +642,13 @@ export default function OnboardingPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense>
+      <OnboardingForm />
+    </Suspense>
   );
 }
