@@ -55,12 +55,15 @@ function OnboardingForm() {
   const [loading, setLoading] = useState(false);
 
   // Step 2: identity
-  const [name, setName]         = useState("");
-  const [phone, setPhone]       = useState("");
-  const [password, setPassword] = useState("");
+  const [name, setName]             = useState("");
+  const [identifier, setIdentifier] = useState(""); // phone or email
+  const [password, setPassword]     = useState("");
 
-  // Step 3: OTP
+  // Step 3: OTP (phone only)
   const [otp, setOtp] = useState("");
+
+  const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+  const isEmailUser = isEmail(identifier);
 
   // Step 4: trade (artisan)
   const [trade, setTrade] = useState("");
@@ -102,26 +105,54 @@ function OnboardingForm() {
     if (!digits.startsWith("+"))                         return `+234${digits}`;
     return `+${digits}`;
   };
+  const formattedPhone = isEmailUser ? "" : fmtPhone(identifier);
 
   /* ── Step 2: sign up ─────────────────────────────────── */
   const handleSignUp = async () => {
-    if (!name.trim())         { setError("Enter your full name."); return; }
-    if (!phone.trim())        { setError("Enter your phone number."); return; }
-    if (password.length < 8)  { setError("Password must be at least 8 characters."); return; }
+    if (!name.trim())        { setError("Enter your full name."); return; }
+    if (!identifier.trim())  { setError("Enter your phone number or email."); return; }
+    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
 
     setLoading(true);
     setError("");
-    const supabase    = createClient();
-    const formattedPhone = fmtPhone(phone);
+    const supabase = createClient();
 
     try {
-      const { error: signUpErr } = await supabase.auth.signUp({
-        phone:    formattedPhone,
-        password,
-        options:  { data: { name: name.trim() } },
-      });
-      if (signUpErr) throw new Error(signUpErr.message);
-      go(3);
+      if (isEmailUser) {
+        // Email path: create via service route (email_confirm: true, no verification email)
+        const res = await fetch("/api/auth/signup", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ email: identifier.trim(), password, name: name.trim() }),
+        });
+        const data = await res.json() as { error?: string };
+        if (!res.ok) throw new Error(data.error ?? "Sign-up failed.");
+
+        // Sign in immediately (account is already confirmed)
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: identifier.trim().toLowerCase(),
+          password,
+        });
+        if (signInErr) throw new Error(signInErr.message);
+
+        // Save profile
+        await fetch("/api/auth/me", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ name: name.trim(), phone: null, location: "" }),
+        });
+
+        if (isArtisan) go(4); else await finishHireFlow();
+      } else {
+        // Phone path: send OTP, go to step 3
+        const { error: signUpErr } = await supabase.auth.signUp({
+          phone:   fmtPhone(identifier),
+          password,
+          options: { data: { name: name.trim() } },
+        });
+        if (signUpErr) throw new Error(signUpErr.message);
+        go(3);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-up failed. Try again.");
     } finally {
@@ -129,13 +160,12 @@ function OnboardingForm() {
     }
   };
 
-  /* ── Step 3: verify OTP ──────────────────────────────── */
+  /* ── Step 3: verify OTP (phone users only) ──────────── */
   const handleVerifyOtp = async () => {
     if (otp.length < 4) { setError("Enter the 6-digit code."); return; }
     setLoading(true);
     setError("");
-    const supabase    = createClient();
-    const formattedPhone = fmtPhone(phone);
+    const supabase = createClient();
     try {
       const { error: verifyErr } = await supabase.auth.verifyOtp({
         phone: formattedPhone,
@@ -144,7 +174,6 @@ function OnboardingForm() {
       });
       if (verifyErr) throw new Error(verifyErr.message);
 
-      // Save name to users table
       await fetch("/api/auth/me", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
@@ -230,7 +259,6 @@ function OnboardingForm() {
   const handleArtisanSubmit = async () => {
     setLoading(true);
     setError("");
-    const formattedPhone = fmtPhone(phone);
     const fullLocation = [landmark, lga, state].filter(Boolean).join(", ");
     try {
       const res = await fetch("/api/artisans/register", {
@@ -238,7 +266,7 @@ function OnboardingForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fullName:         name.trim(),
-          phone:            formattedPhone,
+          phone:            isEmailUser ? "" : formattedPhone,
           category:         trade,
           location:         fullLocation,
           yearsExperience:  0,
@@ -325,7 +353,7 @@ function OnboardingForm() {
             <>
               <div>
                 <h1 className="text-xl font-black text-gray-950">Create your account</h1>
-                <p className="text-xs text-gray-400 mt-1 font-semibold">Your phone number is your login ID</p>
+                <p className="text-xs text-gray-400 mt-1 font-semibold">Use your phone number or email</p>
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Full name</label>
@@ -334,11 +362,13 @@ function OnboardingForm() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Phone number</label>
-                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                  placeholder="080xxxxxxxx"
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Phone or Email</label>
+                <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="080xxxxxxxx or you@email.com"
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
-                <p className="text-[10px] text-gray-400 mt-1">We&apos;ll send a verification code to this number</p>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {isEmailUser ? "Account created instantly — no verification needed" : "We’ll send a one-time code to this number"}
+                </p>
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Password</label>
@@ -349,7 +379,7 @@ function OnboardingForm() {
                   Minimum 8 characters
                 </p>
               </div>
-              <button onClick={handleSignUp} disabled={loading || !name.trim() || !phone.trim() || password.length < 8}
+              <button onClick={handleSignUp} disabled={loading || !name.trim() || !identifier.trim() || password.length < 8}
                 className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
                 {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 {loading ? "Creating account…" : "Continue →"}
@@ -364,7 +394,7 @@ function OnboardingForm() {
               <div>
                 <h1 className="text-xl font-black text-gray-950">Verify your number</h1>
                 <p className="text-xs text-gray-400 mt-1 font-semibold">
-                  Enter the 6-digit code sent to {fmtPhone(phone)}
+                  Enter the 6-digit code sent to {formattedPhone}
                 </p>
               </div>
               <div>
@@ -606,7 +636,7 @@ function OnboardingForm() {
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Application Summary</p>
                 {[
                   ["Name", name],
-                  ["Phone", fmtPhone(phone)],
+                  [isEmailUser ? "Email" : "Phone", isEmailUser ? identifier.trim() : formattedPhone],
                   ["Trade", trade],
                   ["Location", [landmark, lga, state].filter(Boolean).join(", ")],
                   calloutFee ? ["Call-out fee", `₦${parseInt(calloutFee).toLocaleString()}`] : null,
