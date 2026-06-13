@@ -17,6 +17,7 @@ function toArtisan(r: Record<string, unknown>) {
     trustScore:                r.trust_score as number,
     completedJobs:             r.completed_jobs as number,
     isVerified:                r.is_verified as boolean,
+    ninVerified:               (r.nin_verified ?? false) as boolean,
     applicationStatus:         r.application_status as "pending" | "approved" | "rejected",
     artisan_pending_balance:   r.artisan_pending_balance as number,
     artisan_available_balance: r.artisan_available_balance as number,
