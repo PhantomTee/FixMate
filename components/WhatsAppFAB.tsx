@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 
-const number   = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER   ?? "14155238886";
-const joinCode = process.env.NEXT_PUBLIC_WHATSAPP_JOIN_CODE ?? "join whistle-bear";
-const prefilledText = encodeURIComponent(joinCode);
+const number = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "2348020795709";
 
 export default function WhatsAppFAB() {
-  const href = `https://wa.me/${number.replace(/\D/g, "")}?text=${prefilledText}`;
+  const href = `https://wa.me/${number.replace(/\D/g, "")}?text=${encodeURIComponent("Hi")}`;
 
   return (
     <>
