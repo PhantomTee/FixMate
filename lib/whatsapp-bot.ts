@@ -71,7 +71,7 @@ export async function handleBotMessage(
 
     if (["menu", "help", "hi", "hello", "start", "0"].includes(lower)) {
       const { data: profile } = await db
-        .from("users").select("name").eq("phone", phone).single();
+        .from("bot_customers").select("name").eq("phone", phone).single();
       const greeting = profile ? `Hi ${profile.name as string}! 👋\n\n` : "";
       await setSession(db, phone, "idle", {});
       await send(phone, greeting + MENU);
@@ -96,7 +96,7 @@ export async function handleBotMessage(
         // Menu shortcuts
         if (["1", "fix"].includes(lower)) {
           const { data: profile } = await db
-            .from("users").select("id, name, location").eq("phone", phone).single();
+            .from("bot_customers").select("id, name, location").eq("phone", phone).single();
           if (!profile) {
             await setSession(db, phone, "registering_name", {});
             await send(phone, "Hi! Welcome to iSabi 👋\n\nI help you find trusted artisans for home repairs in Nigeria.\n\nFirst, what is your full name?");
@@ -126,7 +126,7 @@ export async function handleBotMessage(
 
         // Check for existing profile
         const { data: profile } = await db
-          .from("users").select("id, name, location").eq("phone", phone).single();
+          .from("bot_customers").select("id, name, location").eq("phone", phone).single();
 
         if (!profile) {
           // New user — show welcome + register
@@ -169,7 +169,7 @@ export async function handleBotMessage(
         const location = msg;
 
         const { data: newUser } = await db
-          .from("users")
+          .from("bot_customers")
           .insert({ phone, name, location })
           .select("id")
           .single();
@@ -194,7 +194,7 @@ export async function handleBotMessage(
 
       // ── Update saved location ───────────────────────────────────────────────
       case "updating_location": {
-        await db.from("users").update({ location: msg }).eq("phone", phone);
+        await db.from("bot_customers").update({ location: msg }).eq("phone", phone);
         await setSession(db, phone, "idle", {});
         await send(phone, `✅ Your area has been updated to *${msg}*.\n\n` + MENU);
         break;
@@ -533,7 +533,7 @@ async function handleArtisanResponse(
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleStatus(phone: string, send: BotSend, db: any) {
-  const { data: user } = await db.from("users").select("id, name").eq("phone", phone).single();
+  const { data: user } = await db.from("bot_customers").select("id, name").eq("phone", phone).single();
   if (!user) {
     await send(phone, "You don't have an account yet. Reply *1* or *fix* to get started.");
     return;
