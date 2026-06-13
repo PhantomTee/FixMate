@@ -118,9 +118,17 @@ export async function handleBotMessage(
           break;
         }
 
-        if (lower === "update location") {
-          await setSession(db, phone, "updating_location", {});
-          await send(phone, "What is your new area? (e.g. \"Yaba, Lagos\")");
+        if (lower === "update location" || lower.startsWith("update location ") || lower.startsWith("update location to ")) {
+          // "update location Ikeja Lagos" or "update location to Ikeja, Lagos"
+          const inline = msg.replace(/^update location (to )?/i, "").trim();
+          if (inline) {
+            await db.from("bot_customers").update({ location: inline }).eq("phone", phone);
+            await setSession(db, phone, "idle", {});
+            await send(phone, `✅ Location updated to *${inline}*.\n\n` + MENU);
+          } else {
+            await setSession(db, phone, "updating_location", {});
+            await send(phone, "What is your new area? (e.g. \"Yaba, Lagos\")");
+          }
           break;
         }
 
@@ -177,9 +185,12 @@ export async function handleBotMessage(
         const userId       = newUser?.id as string;
         const firstMessage = ctx.firstMessage as string | undefined;
 
+        // Encode phone for the claim URL (strip "whatsapp:" prefix)
+        const claimPhone = (phone.startsWith("whatsapp:") ? phone.slice(9) : phone).replace("+", "");
         await send(phone,
           `You're all set, ${name}! 🎉\n\n` +
           `Your area is saved as *${location}* — I'll always search there first.\n\n` +
+          `💡 *Want to track jobs on the web?* Create a full account:\n${APP_URL}/claim?phone=${claimPhone}\n\n` +
           MENU
         );
 
