@@ -17,14 +17,32 @@ const HOOK_SECRET   = process.env.SUPABASE_HOOK_SECRET ?? "";
 const META_TOKEN    = process.env.META_WA_TOKEN!;
 const META_PHONE_ID = process.env.META_PHONE_NUMBER_ID!;
 
+// Supabase signs hooks with HMAC-SHA256 using the whsec_ secret
+async function verifySupabaseHook(req: NextRequest, rawBody: string): Promise<boolean> {
+  if (!HOOK_SECRET) return true;
+  try {
+    const secret    = HOOK_SECRET.startsWith("v1,whsec_")
+      ? HOOK_SECRET.slice("v1,whsec_".length)
+      : HOOK_SECRET;
+    const keyData   = Buffer.from(secret, "base64");
+    const key       = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+    const signature = req.headers.get("x-supabase-signature") ?? "";
+    const sigBytes  = Buffer.from(signature, "base64");
+    const msgBytes  = new TextEncoder().encode(rawBody);
+    return await crypto.subtle.verify("HMAC", key, sigBytes, msgBytes);
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: NextRequest) {
-  // Verify Supabase hook signature
-  const authHeader = req.headers.get("authorization");
-  if (HOOK_SECRET && authHeader !== `Bearer ${HOOK_SECRET}`) {
+  const rawBody = await req.text();
+  const valid   = await verifySupabaseHook(req, rawBody);
+  if (!valid) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json() as {
+  const body = JSON.parse(rawBody) as {
     user: { phone: string };
     sms:  { otp: string };
   };
