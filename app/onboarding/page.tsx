@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { useGeoLocation } from "@/lib/useGeoLocation";
 
 /* ── Nigerian states ─────────────────────────────────────── */
 const NG_STATES = [
@@ -72,6 +73,7 @@ function OnboardingForm() {
   const [state, setState]       = useState("");
   const [lga, setLga]           = useState("");
   const [landmark, setLandmark] = useState("");
+  const geo = useGeoLocation();
 
   // Step 6: portfolio (artisan)
   const [portfolio, setPortfolio] = useState<string[]>([]);
@@ -512,6 +514,26 @@ function OnboardingForm() {
                 <h1 className="text-xl font-black text-gray-950">Where are you based?</h1>
                 <p className="text-xs text-gray-400 mt-1 font-semibold">Clients nearby will find you faster</p>
               </div>
+              <button
+                type="button"
+                onClick={() => geo.detect(({ city, state: detectedState }) => {
+                  const match = NG_STATES.find(
+                    (s) => s.toLowerCase() === detectedState.toLowerCase()
+                  );
+                  if (match) setState(match);
+                  if (city) setLga(city);
+                })}
+                disabled={geo.loading}
+                className="w-full flex items-center justify-center gap-2 py-2.5 border border-green-600 text-green-700 text-sm font-black rounded-xl hover:bg-green-50 transition-colors disabled:opacity-50"
+              >
+                {geo.loading ? (
+                  <span className="animate-spin text-base">⟳</span>
+                ) : (
+                  <span>📍</span>
+                )}
+                {geo.loading ? "Detecting location…" : "Use my location"}
+              </button>
+              {geo.error && <p className="text-xs text-red-500 font-semibold -mt-2">{geo.error}</p>}
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">State</label>
                 <select value={state} onChange={(e) => setState(e.target.value)}

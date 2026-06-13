@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useGeoLocation } from "@/lib/useGeoLocation";
 import JobChat from "@/components/JobChat";
 import RatingWidget from "@/components/RatingWidget";
 import {
@@ -51,6 +52,7 @@ export default function ProfilePage() {
   const [profile, setProfile]   = useState<UserProfile | null>(null);
   const [editName, setEditName] = useState("");
   const [editLoc, setEditLoc]   = useState("");
+  const geo = useGeoLocation();
   const [saving, setSaving]     = useState(false);
   const [saveOk, setSaveOk]     = useState(false);
   const [saveErr, setSaveErr]   = useState("");
@@ -424,9 +426,21 @@ export default function ProfilePage() {
             </div>
             <div>
               <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">City / area</label>
-              <input type="text" value={editLoc} onChange={(e) => setEditLoc(e.target.value)}
-                placeholder="Ikeja, Lagos"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
+              <div className="flex gap-2">
+                <input type="text" value={editLoc} onChange={(e) => setEditLoc(e.target.value)}
+                  placeholder="Ikeja, Lagos"
+                  className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
+                <button
+                  type="button"
+                  onClick={() => geo.detect(({ formatted }) => setEditLoc(formatted))}
+                  disabled={geo.loading}
+                  title="Use my location"
+                  className="px-3 border border-green-600 text-green-700 rounded-xl hover:bg-green-50 transition-colors disabled:opacity-50 text-base"
+                >
+                  {geo.loading ? <span className="animate-spin inline-block">⟳</span> : "📍"}
+                </button>
+              </div>
+              {geo.error && <p className="text-xs text-red-500 font-semibold mt-1">{geo.error}</p>}
             </div>
             <div>
               <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Phone number</label>
