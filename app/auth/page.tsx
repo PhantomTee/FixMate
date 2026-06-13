@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
-type Channel  = "email" | "sms" | "whatsapp";
+type Channel  = "email" | "whatsapp";
 type AuthMode = "otp" | "password";
 
 function formatPhone(p: string): string {
@@ -32,9 +32,8 @@ function AuthForm() {
   const [info,       setInfo]       = useState("");
 
   const channelTabs: { key: Channel; label: string; icon: string; placeholder: string }[] = [
-    { key: "email",     label: "Email",     icon: "✉️",  placeholder: "you@example.com"  },
-    { key: "sms",       label: "SMS",       icon: "💬",  placeholder: "08012345678"       },
-    { key: "whatsapp",  label: "WhatsApp",  icon: "📱",  placeholder: "08012345678"       },
+    { key: "email",    label: "Email",     icon: "✉️", placeholder: "you@example.com" },
+    { key: "whatsapp", label: "WhatsApp",  icon: "📱", placeholder: "08012345678"      },
   ];
 
   // ── Send OTP ──────────────────────────────────────────────────────────────
@@ -56,10 +55,8 @@ function AuthForm() {
 
       if (channel === "email") {
         setInfo(`A 6-digit code was sent to ${identifier.trim()}`);
-      } else if (channel === "whatsapp") {
-        setInfo(`A code was sent to your WhatsApp (${formatPhone(identifier)})`);
       } else {
-        setInfo(`A code was sent via SMS to ${formatPhone(identifier)}`);
+        setInfo(`A code was sent to your WhatsApp (${formatPhone(identifier)})`);
       }
 
       setPhone(data.phone ?? formatPhone(identifier));

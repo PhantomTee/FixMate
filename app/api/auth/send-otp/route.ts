@@ -12,7 +12,7 @@ function formatPhone(p: string): string {
 export async function POST(req: NextRequest) {
   const { identifier, channel } = await req.json() as {
     identifier: string;
-    channel: "email" | "sms" | "whatsapp";
+    channel: "email" | "whatsapp";
   };
 
   if (!identifier || !channel) {
