@@ -1021,18 +1021,30 @@ async function setSession(db: any, phone: string, state: string, context: Record
 }
 
 async function sendWhatsApp(to: string, message: string): Promise<void> {
-  const termiiKey    = process.env.TERMII_API_KEY;
-  const termiiSender = process.env.TERMII_SENDER_ID ?? "iSabi";
+  const metaToken   = process.env.META_WA_TOKEN;
+  const metaPhoneId = process.env.META_PHONE_NUMBER_ID;
 
-  if (termiiKey) {
-    await fetch("https://v3.api.termii.com/api/sms/send", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ to, from: termiiSender, sms: message, type: "plain", channel: "WhatsApp", api_key: termiiKey }),
-    });
+  if (metaToken && metaPhoneId) {
+    const dest = to.replace(/^whatsapp:\+?/, "").replace(/^\+/, "");
+    const res  = await fetch(
+      `https://graph.facebook.com/v19.0/${metaPhoneId}/messages`,
+      {
+        method:  "POST",
+        headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type:    "individual",
+          to:                dest,
+          type:              "text",
+          text:              { body: message },
+        }),
+      }
+    );
+    if (!res.ok) console.error("Meta sendWhatsApp error:", await res.text());
     return;
   }
 
+  // Fallback: Twilio
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken  = process.env.TWILIO_AUTH_TOKEN;
   const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER;
