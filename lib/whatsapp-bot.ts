@@ -35,7 +35,8 @@ export async function handleBotMessage(
   const db  = createServiceClient();
   const msg = text.trim();
 
-  // Load or create session
+  try {
+    // Load or create session
   let { data: session } = await db
     .from("whatsapp_sessions")
     .select("*")
@@ -49,6 +50,12 @@ export async function handleBotMessage(
       .select()
       .single();
     session = s!;
+  }
+
+  // If session still null (DB error), bail gracefully
+  if (!session) {
+    await send(phone, "Sorry, I'm having trouble right now. Please try again in a moment.");
+    return;
   }
 
   await db
@@ -69,7 +76,6 @@ export async function handleBotMessage(
     return;
   }
 
-  try {
     switch (state) {
 
       // ── Idle / fresh start ────────────────────────────────────────────────

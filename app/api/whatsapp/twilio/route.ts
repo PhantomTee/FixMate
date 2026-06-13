@@ -26,7 +26,12 @@ export async function POST(req: NextRequest) {
   const from = (form.get("From") as string) ?? ""; // "whatsapp:+2348012345678"
 
   if (from && text) {
-    await handleBotMessage(from, text, sendTwilio);
+    try {
+      await handleBotMessage(from, text, sendTwilio);
+    } catch (err) {
+      console.error("Twilio webhook unhandled error:", err);
+      // Still return 200 so Twilio doesn't retry
+    }
   }
 
   return new NextResponse("", { status: 200 });
