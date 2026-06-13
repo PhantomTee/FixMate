@@ -384,9 +384,9 @@ export default function HomePage() {
       <footer className="border-t border-gray-100 bg-white py-12 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between gap-10">
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="flex h-8 w-8 items-center justify-center bg-green-700 text-sm font-black text-white rounded-lg">S</span>
-              <span className="text-base font-black text-gray-950">iSabi</span>
+            <div className="flex items-center mb-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/isabi-logo.svg" alt="iSabi" className="h-8 w-auto" />
             </div>
             <p className="text-sm text-gray-400 max-w-[220px] leading-relaxed">
               Nigeria's marketplace for trusted home repair professionals.

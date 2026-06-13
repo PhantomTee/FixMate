@@ -140,9 +140,9 @@ export default function Navbar() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6">
 
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <span className="flex h-8 w-8 items-center justify-center bg-green-700 text-sm font-black text-white rounded-lg">S</span>
-            <span className="text-base font-black tracking-tight text-gray-950">iSabi</span>
+          <Link href="/" className="flex items-center shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/isabi-logo.svg" alt="iSabi" className="h-8 w-auto" />
           </Link>
 
           {/* Desktop nav links */}

@@ -359,9 +359,9 @@ function OnboardingForm() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
       <div className="w-full max-w-sm">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 mb-6 justify-center">
-          <span className="flex h-9 w-9 items-center justify-center bg-green-700 text-sm font-black text-white rounded-lg">S</span>
-          <span className="text-lg font-black text-gray-950">iSabi</span>
+        <Link href="/" className="flex items-center mb-6 justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/isabi-logo.svg" alt="iSabi" className="h-9 w-auto" />
         </Link>
 
         {!sessionChecked && (
