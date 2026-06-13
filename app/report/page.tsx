@@ -41,7 +41,7 @@ export default function ReportPage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Groq vision cap: base64 payload must stay under 4 MB
+    // iSabi AI vision cap: base64 payload must stay under 4 MB
     if (file.size > 3.5 * 1024 * 1024) {
       setAnalyzeError("Photo is too large (max 3.5 MB). Please choose a smaller image.");
       return;

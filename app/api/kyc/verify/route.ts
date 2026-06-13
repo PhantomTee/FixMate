@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       face_match:     true,
       confidence:     0.99,
       verified:       true,
-      reason:         "Demo mode — GROQ_API_KEY not configured. Set it to enable real KYC.",
+      reason:         "Demo mode — iSabi AI verification key not configured.",
     });
   }
 
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       reason:         result.reason         ?? "Unable to verify",
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Groq KYC call failed";
+    const msg = err instanceof Error ? err.message : "iSabi AI verification failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

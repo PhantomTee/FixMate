@@ -257,25 +257,42 @@ function OnboardingForm() {
     );
   };
 
+    /* ── Image compression helper (keeps payload under 4.5 MB) ── */
+  const compressImage = (file: File, maxPx = 800, quality = 0.72): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width  = Math.round(img.width  * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+
   /* ── Step 8: selfie ──────────────────────────────────── */
-  const handleSelfieChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSelfieChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const r = new FileReader();
-    r.onloadend = () => setSelfie(r.result as string);
-    r.readAsDataURL(file);
+    setSelfie(await compressImage(file));
   };
 
   /* ── Step 8: NIN card handler ───────────────────────── */
-  const handleNinCardChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNinCardChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const r = new FileReader();
-    r.onloadend = () => setNinCard(r.result as string);
-    r.readAsDataURL(file);
+    setNinCard(await compressImage(file));
   };
 
-  /* ── Step 8: Gemini KYC verification ────────────────── */
+  /* ── Step 8: iSabi AI KYC verification ──────────────── */
   const runKyc = async () => {
     if (!selfie || !ninCard) { setError("Upload both your NIN card and selfie before verifying."); return; }
     setKycLoading(true);
@@ -640,7 +657,7 @@ function OnboardingForm() {
                 <button onClick={runKyc} disabled={kycLoading || !ninCard || !selfie}
                   className="w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
                   {kycLoading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                  {kycLoading ? "Verifying with Groq AI…" : "Verify Identity"}
+                  {kycLoading ? "Verifying with iSabi AI…" : "Verify Identity"}
                 </button>
               )}
 

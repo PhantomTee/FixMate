@@ -95,7 +95,7 @@ Return this exact JSON shape:
 
     const parts: ContentPart[] = [{ type: "text", text: prompt }];
     if (imageBase64) {
-      // Pass raw data URI directly — Groq vision accepts data URIs
+      // Pass raw data URI directly — iSabi AI vision accepts data URIs
       parts.push({ type: "image_url", image_url: { url: imageBase64 } });
     }
 
@@ -104,7 +104,7 @@ Return this exact JSON shape:
     const diagnosis = validateDiagnosis(raw, description);
     return { ...diagnosis, language };
   } catch (error) {
-    console.error("Groq diagnosis failed:", error);
+    console.error("iSabi AI diagnosis failed:", error);
     return { ...mockDiagnosis(description, language), error: "AI unavailable. Showing a safe demo diagnosis." };
   }
 }
