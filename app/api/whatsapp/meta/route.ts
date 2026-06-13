@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
 }
 
 // ── Send via Meta Cloud API ───────────────────────────────────────────────────
-export async function sendMeta(to: string, message: string): Promise<void> {
+async function sendMeta(to: string, message: string): Promise<void> {
   // Strip whatsapp: prefix if present (Meta uses raw numbers)
   const dest = to.replace(/^whatsapp:\+?/, "").replace(/^\+/, "");
 
