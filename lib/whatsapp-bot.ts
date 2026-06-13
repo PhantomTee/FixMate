@@ -74,13 +74,26 @@ export async function handleBotMessage(
 
     const lower = msg.toLowerCase().trim();
 
-    // ── Global: menu reset ──────────────────────────────────────────────────
+    // ── Global: greeting → onboarding or menu ──────────────────────────────
     if (["menu", "help", "hi", "hello", "start", "0"].includes(lower) && !imageBase64) {
       const { data: profile } = await db
         .from("bot_customers").select("name").eq("phone", phone).single();
-      const greeting = profile ? `Hi ${profile.name as string}! 👋\n\n` : "";
+
+      if (!profile) {
+        // First-time user — start onboarding
+        await setSession(db, phone, "registering_name", {});
+        await send(phone,
+          `👋 Hi! Welcome to *iSabi* — Nigeria's home repair marketplace.\n\n` +
+          `I connect you with verified, trusted artisans for any repair job.\n\n` +
+          `Let's get you set up in 2 quick steps.\n\n` +
+          `What is your full name?`
+        );
+        return;
+      }
+
+      // Returning user — show menu
       await setSession(db, phone, "idle", {});
-      await send(phone, greeting + MENU);
+      await send(phone, `Hi ${profile.name as string}! 👋\n\n` + MENU);
       return;
     }
 
@@ -240,7 +253,8 @@ export async function handleBotMessage(
         await send(phone,
           `You're all set, ${name}! 🎉\n\n` +
           `Your area is saved as *${location}* — I'll always search there first.\n\n` +
-          `💡 *Track jobs online:* ${APP_URL}/claim?phone=${claimPhone}`
+          `💡 *Track jobs online:* ${APP_URL}/claim?phone=${claimPhone}\n\n` +
+          MENU
         );
 
         if (pendingFix) {
@@ -251,7 +265,6 @@ export async function handleBotMessage(
           await startIssueFlow(phone, firstMessage, null, userId, name, location, send, db);
         } else {
           await setSession(db, phone, "idle", {});
-          await send(phone, MENU);
         }
         break;
       }
