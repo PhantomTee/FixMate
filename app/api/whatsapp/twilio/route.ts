@@ -16,10 +16,6 @@ import { NextRequest, NextResponse } from "next/server";
 import twilio from "twilio";
 import { handleBotMessage } from "@/lib/whatsapp-bot";
 
-const ACCOUNT_SID  = process.env.TWILIO_ACCOUNT_SID!;
-const AUTH_TOKEN   = process.env.TWILIO_AUTH_TOKEN!;
-const FROM_NUMBER  = process.env.TWILIO_WHATSAPP_NUMBER!;
-
 export async function POST(req: NextRequest) {
   const form = await req.formData();
   const text = ((form.get("Body") as string) ?? "").trim();
@@ -38,6 +34,15 @@ export async function POST(req: NextRequest) {
 }
 
 async function sendTwilio(to: string, body: string) {
-  const client = twilio(ACCOUNT_SID, AUTH_TOKEN);
-  await client.messages.create({ from: FROM_NUMBER, to, body });
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken  = process.env.TWILIO_AUTH_TOKEN;
+  const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+
+  if (!accountSid || !authToken || !fromNumber) {
+    console.error("Twilio env vars missing:", { accountSid: !!accountSid, authToken: !!authToken, fromNumber: !!fromNumber });
+    return;
+  }
+
+  const client = twilio(accountSid, authToken);
+  await client.messages.create({ from: fromNumber, to, body });
 }
