@@ -121,7 +121,8 @@ export async function handleBotMessage(
           const { data: profile } = await db
             .from("bot_customers").select("id, name, location").eq("phone", phone).single();
           if (!profile) {
-            await setSession(db, phone, "registering_name", {});
+            // Store that this came from "fix" so we resume after registration
+            await setSession(db, phone, "registering_name", { pendingFix: true });
             await send(phone, "Hi! Welcome to iSabi 👋\n\nI help you find trusted artisans for home repairs in Nigeria.\n\nFirst, what is your full name?");
             break;
           }
@@ -233,19 +234,24 @@ export async function handleBotMessage(
 
         const userId       = newUser?.id as string;
         const firstMessage = ctx.firstMessage as string | undefined;
+        const pendingFix   = ctx.pendingFix   as boolean | undefined;
         const claimPhone   = (phone.startsWith("whatsapp:") ? phone.slice(9) : phone).replace("+", "");
 
         await send(phone,
           `You're all set, ${name}! 🎉\n\n` +
           `Your area is saved as *${location}* — I'll always search there first.\n\n` +
-          `💡 *Track jobs online:* ${APP_URL}/claim?phone=${claimPhone}\n\n` +
-          MENU
+          `💡 *Track jobs online:* ${APP_URL}/claim?phone=${claimPhone}`
         );
 
-        if (firstMessage && firstMessage.length > 3) {
+        if (pendingFix) {
+          // User came from "Fix" command — continue straight to issue description
+          await setSession(db, phone, "awaiting_issue", { userId, userName: name, location });
+          await send(phone, "Now, what's the issue? Describe it in text or send a photo 📸");
+        } else if (firstMessage && firstMessage.length > 3) {
           await startIssueFlow(phone, firstMessage, null, userId, name, location, send, db);
         } else {
           await setSession(db, phone, "idle", {});
+          await send(phone, MENU);
         }
         break;
       }
@@ -456,11 +462,7 @@ async function runDiagnosis(
 
   const urgencyLine = diagnosis.urgency === "High" ? "⚠️ *Urgent issue!*\n\n" : "";
   const warning     = diagnosis.safety_warning ? `\n\n⚠️ *Safety:* ${diagnosis.safety_warning}` : "";
-  const min         = diagnosis.estimated_min_naira;
-  const max         = diagnosis.estimated_max_naira;
-  const costLine    = min > 0 && max > 0
-    ? `💰 Estimated cost: ₦${min.toLocaleString()} – ₦${max.toLocaleString()}\n`
-    : "💰 Cost will be quoted by artisan after assessment.\n";
+  const costLine    = "💰 *Cost depends on what the artisan finds on-site.* You'll get a quote before any work begins.\n";
 
   const { data: artisans } = await db.rpc("match_artisans", {
     p_category: diagnosis.artisan_category,
@@ -475,14 +477,22 @@ async function runDiagnosis(
     costLine;
 
   if (!artisans?.length) {
+    // Save an alert so we notify the user when an artisan becomes available
+    await db.from("artisan_alerts").insert({
+      phone,
+      category: diagnosis.artisan_category,
+      location,
+    });
+
     await setSession(db, phone, "change_location", {
       description, imageBase64, userId, userName, location,
       diagnosis, category: diagnosis.artisan_category,
     });
     await send(phone,
       diagMsg +
-      `\n❌ No ${diagnosis.artisan_category} artisans found near *${location}* yet.\n\n` +
-      `Reply with a different area to search (e.g. "Lagos Island"), or *cancel* to go back to the menu.`
+      `\n❌ No *${diagnosis.artisan_category}* artisans found near *${location}* yet.\n\n` +
+      `We'll notify you on WhatsApp within *72 hours* if one becomes available in your area.\n\n` +
+      `Or reply with a different area to search (e.g. "Lagos Island"), or *cancel* to go back to the menu.`
     );
     return;
   }
@@ -575,9 +585,7 @@ async function createBooking(phone: string, ctx: Record<string, unknown>, send: 
 
   await setSession(db, phone, "done", {});
 
-  const costLine = quoteMin > 0 && quoteMax > 0
-    ? `Estimated cost: ₦${quoteMin.toLocaleString()} – ₦${quoteMax.toLocaleString()} + 2% service fee\n`
-    : "Final cost will be quoted by the artisan after assessment.\n";
+  const costLine = "The artisan will provide a quote on-site before any work begins.\n";
 
   const payMsg = payLink
     ? `\nPay securely: ${payLink}`

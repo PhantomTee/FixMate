@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useGeoLocation } from "@/lib/useGeoLocation";
@@ -43,15 +43,18 @@ function greeting() {
   return "Good evening";
 }
 
-interface UserProfile { id: string; name: string; phone: string; location: string }
+interface UserProfile { id: string; name: string; phone: string; location: string; avatar?: string }
 
 export default function ProfilePage() {
   const router = useRouter();
 
   // Profile / settings state
-  const [profile, setProfile]   = useState<UserProfile | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editLoc, setEditLoc]   = useState("");
+  const [profile, setProfile]     = useState<UserProfile | null>(null);
+  const [editName, setEditName]   = useState("");
+  const [editLoc, setEditLoc]     = useState("");
+  const [avatar, setAvatar]       = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarRef = useRef<HTMLInputElement>(null);
   const geo = useGeoLocation();
   const [saving, setSaving]     = useState(false);
   const [saveOk, setSaveOk]     = useState(false);
@@ -89,6 +92,7 @@ export default function ProfilePage() {
         setProfile(data.user);
         setEditName(data.user.name ?? "");
         setEditLoc(data.user.location ?? "");
+        setAvatar(data.user.avatar ?? null);
       })
       .catch(() => router.push("/auth?next=/profile"));
 
@@ -119,6 +123,36 @@ export default function ProfilePage() {
     });
     return () => { channel.unsubscribe(); };
   }, [data?.booking?.id]);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+    setAvatarUploading(true);
+    try {
+      const supabase = (await import("@/lib/supabase")).createClient();
+      const ext  = file.name.split(".").pop() ?? "jpg";
+      const path = `avatars/${profile.id}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw new Error(upErr.message);
+
+      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+      setAvatar(publicUrl);
+
+      // Persist to users table
+      await fetch("/api/auth/me", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName, location: editLoc, phone: profile.phone, avatar: publicUrl }),
+      });
+      setProfile((p) => p ? { ...p, avatar: publicUrl } : p);
+    } catch (err) {
+      console.error("Avatar upload failed:", err);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,10 +240,27 @@ export default function ProfilePage() {
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-lg mx-auto px-4 pt-6 pb-5">
           <div className="flex items-center gap-4">
-            {/* Avatar circle */}
-            <div className="w-16 h-16 rounded-full bg-green-700 flex items-center justify-center text-white text-2xl font-black shrink-0 select-none">
-              {(profile?.name ?? "?").charAt(0).toUpperCase()}
-            </div>
+            {/* Avatar — click to upload */}
+            <button
+              type="button"
+              onClick={() => avatarRef.current?.click()}
+              className="relative w-16 h-16 rounded-full shrink-0 overflow-hidden group focus:outline-none"
+              title="Change profile photo"
+            >
+              {avatar
+                ? <img src={avatar} alt="Profile" className="w-full h-full object-cover" />
+                : <div className="w-full h-full bg-green-700 flex items-center justify-center text-white text-2xl font-black select-none">
+                    {(profile?.name ?? "?").charAt(0).toUpperCase()}
+                  </div>
+              }
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                {avatarUploading
+                  ? <span className="text-white text-xs animate-spin">⟳</span>
+                  : <span className="text-white text-xs">📷</span>
+                }
+              </div>
+            </button>
+            <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-black text-gray-950 leading-tight truncate">
                 {greeting()}, {firstName}
