@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 const number   = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER   ?? "14155238886";
-const joinCode = process.env.NEXT_PUBLIC_WHATSAPP_JOIN_CODE ?? "join whistle-bear";
+const joinCode = process.env.NEXT_PUBLIC_WHATSAPP_JOIN_CODE ?? "join damage-account";
 const prefilledText = encodeURIComponent(joinCode);
 
 export default function WhatsAppFAB() {
