@@ -49,9 +49,9 @@ export async function POST(req: NextRequest) {
 
   if (channel === "whatsapp") {
     await sendViaWhatsApp(phone, otp);
-  } else {
-    await sendViaSMS(phone, otp);
   }
+  // For SMS: if no whatsapp pref found, Supabase handles delivery itself —
+  // return {} so Supabase knows the hook succeeded and proceeds normally.
 
   // Clean up preference
   await db.from("otp_channel_prefs").delete().eq("phone", phone);
@@ -86,23 +86,3 @@ async function sendViaWhatsApp(phone: string, otp: string) {
   if (!res.ok) console.error("WhatsApp OTP send error:", await res.text());
 }
 
-async function sendViaSMS(phone: string, otp: string) {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken  = process.env.TWILIO_AUTH_TOKEN;
-  const fromNumber = (process.env.TWILIO_PHONE_NUMBER
-    ?? process.env.TWILIO_WHATSAPP_NUMBER?.replace("whatsapp:", "")
-    ?? "");
-
-  if (!accountSid || !authToken || !fromNumber) {
-    console.error("Twilio SMS env vars missing for OTP delivery");
-    return;
-  }
-
-  const { default: twilio } = await import("twilio");
-  const client = twilio(accountSid, authToken);
-  await client.messages.create({
-    from: fromNumber,
-    to:   phone,
-    body: `Your iSabi verification code is: ${otp}. Valid for 10 minutes. Do not share this code.`,
-  });
-}
