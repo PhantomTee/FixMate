@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       p_limit:    10,
     });
     // If RPC succeeds return it; otherwise fall through to regular query
-    if (!error) return NextResponse.json((data ?? []).map((r) => toArtisan(r as Record<string, unknown>)));
+    if (!error) return NextResponse.json((data ?? []).map((r: Record<string, unknown>) => toArtisan(r)));
     console.error("match_artisans RPC error:", error.message);
   }
 
