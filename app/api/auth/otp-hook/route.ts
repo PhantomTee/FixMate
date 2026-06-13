@@ -2,7 +2,7 @@
  * Supabase Auth Hook — Send SMS
  *
  * Configure in: Supabase Dashboard → Authentication → Hooks → Send SMS hook
- * Set URL to: https://fixmate-app-psi.vercel.app/api/auth/otp-hook
+ * Set URL to: https://isabiwork.vercel.app/api/auth/otp-hook
  * Set secret in Supabase dashboard and add SUPABASE_HOOK_SECRET to Vercel env vars.
  *
  * This hook intercepts all phone OTPs from Supabase and routes them to

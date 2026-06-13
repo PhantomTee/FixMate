@@ -17,7 +17,7 @@ import { ARTISAN_CATEGORIES, ArtisanCategory } from "@/lib/types";
 export type BotSend = (to: string, message: string) => Promise<void>;
 
 const CATEGORY_LIST = ARTISAN_CATEGORIES.map((c, i) => `${i + 1}. ${c}`).join("\n");
-const APP_URL       = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixmate-app-psi.vercel.app";
+const APP_URL       = process.env.NEXT_PUBLIC_APP_URL ?? "https://isabiwork.vercel.app";
 const PAYSTACK_KEY  = process.env.PAYSTACK_SECRET_KEY ?? "";
 
 const USER_FEE_PCT    = 0.02;
