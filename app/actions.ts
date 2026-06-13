@@ -109,6 +109,27 @@ Return this exact JSON shape:
   }
 }
 
+// ── Follow-up question ────────────────────────────────────────────────────────
+export async function getFollowUpQuestion(description: string): Promise<string | null> {
+  if (!GROQ_KEY) return null;
+  try {
+    const prompt = `You are iSabi AI, a Nigerian home repair triage assistant.
+A user described this issue: "${description}"
+
+Ask ONE short clarifying question that would most help diagnose this issue accurately.
+Return JSON only: { "question": "your question here" }
+If the description is already clear enough to diagnose, return: { "question": null }`;
+
+    const raw = await groqJson<{ question: string | null }>(
+      [{ type: "text", text: prompt }],
+      TEXT_MODEL
+    );
+    return raw.question ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Artisan Brief ─────────────────────────────────────────────────────────────
 export async function generateArtisanBrief(
   diagnosis: JobDiagnosis,

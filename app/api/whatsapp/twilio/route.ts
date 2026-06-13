@@ -17,16 +17,33 @@ import twilio from "twilio";
 import { handleBotMessage } from "@/lib/whatsapp-bot";
 
 export async function POST(req: NextRequest) {
-  const form = await req.formData();
-  const text = ((form.get("Body") as string) ?? "").trim();
-  const from = (form.get("From") as string) ?? ""; // "whatsapp:+2348012345678"
+  const form     = await req.formData();
+  const text     = ((form.get("Body") as string) ?? "").trim();
+  const from     = (form.get("From") as string) ?? "";
+  const numMedia = parseInt((form.get("NumMedia") as string) ?? "0");
+  const mediaUrl = numMedia > 0 ? (form.get("MediaUrl0") as string | null) : null;
 
-  if (from && text) {
+  if (from) {
     try {
-      await handleBotMessage(from, text, sendTwilio);
+      // Fetch image as base64 when present (Twilio media requires Basic Auth)
+      let imageBase64: string | null = null;
+      if (mediaUrl) {
+        const accountSid = process.env.TWILIO_ACCOUNT_SID ?? "";
+        const authToken  = process.env.TWILIO_AUTH_TOKEN  ?? "";
+        const creds      = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+        const imgRes     = await fetch(mediaUrl, { headers: { Authorization: `Basic ${creds}` } });
+        if (imgRes.ok) {
+          const buf         = await imgRes.arrayBuffer();
+          const contentType = imgRes.headers.get("content-type") ?? "image/jpeg";
+          imageBase64       = `data:${contentType};base64,${Buffer.from(buf).toString("base64")}`;
+        }
+      }
+
+      if (text || imageBase64) {
+        await handleBotMessage(from, text, sendTwilio, imageBase64);
+      }
     } catch (err) {
       console.error("Twilio webhook unhandled error:", err);
-      // Still return 200 so Twilio doesn't retry
     }
   }
 
