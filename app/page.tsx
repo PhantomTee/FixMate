@@ -21,7 +21,7 @@ const HERO_CONTENT = [
   {
     top: "Skilled artisans,",
     accent: "near you.",
-    sub: "From Lagos to Abuja to Port Harcourt — verified tradespeople wherever you are.",
+    sub: "Find the right hand for the job, anywhere in Nigeria.",
   },
   {
     top: "Your money is safe.",
@@ -45,7 +45,7 @@ const STATS = [
   {
     value: "2,400+",
     label: "Artisans registered",
-    desc: "Across Lagos, Abuja, PH & more",
+    desc: "Every city. Every trade.",
     img: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80", // team of workers
     href: "/browse",
   },

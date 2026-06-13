@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import WhatsAppFAB from "@/components/WhatsAppFAB";
+import SplashScreen from "@/components/SplashScreen";
 
 const font = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={font.variable}>
       <body className="font-sans antialiased bg-white" suppressHydrationWarning>
+        <SplashScreen />
         <Navbar />
         <div className="pb-16 md:pb-0">{children}</div>
         <WhatsAppFAB />
