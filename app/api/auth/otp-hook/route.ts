@@ -12,7 +12,7 @@ const META_TOKEN    = process.env.META_WA_TOKEN!;
 const META_PHONE_ID = process.env.META_PHONE_NUMBER_ID!;
 
 async function verifySignature(req: NextRequest, rawBody: string): Promise<boolean> {
-  if (!HOOK_SECRET) return true;
+  if (!HOOK_SECRET) return false;
   try {
     const secret   = HOOK_SECRET.startsWith("v1,whsec_")
       ? HOOK_SECRET.slice("v1,whsec_".length)
