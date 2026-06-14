@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
     .eq("phone", phone)
     .single();
 
+  console.log("OTP-HOOK pref lookup: phone=", phone, "channel=", pref?.channel ?? "NOT FOUND");
   if (pref?.channel === "whatsapp") {
     // Fix 5: If Meta send fails, return non-200 so Supabase retries rather than silently losing the OTP
     const sent = await sendViaWhatsApp(phone, otp);
@@ -105,6 +106,7 @@ export async function POST(req: NextRequest) {
 // Returns true if sent successfully, false on failure
 async function sendViaWhatsApp(phone: string, otp: string): Promise<boolean> {
   const dest = phone.replace(/^\+/, "");
+  console.log("OTP-HOOK sendViaWhatsApp: dest=", dest, "phoneId=", META_PHONE_ID ? META_PHONE_ID.slice(0,6)+"..." : "MISSING", "token=", META_TOKEN ? "SET" : "MISSING");
   try {
     const res  = await fetch(
       `https://graph.facebook.com/v19.0/${META_PHONE_ID}/messages`,
