@@ -72,20 +72,34 @@ export async function POST(req: NextRequest) {
     sms:  { otp: string };
   };
 
-  const phone = body.user?.phone;
-  const otp   = body.sms?.otp;
+  const rawPhone = body.user?.phone;
+  const otp      = body.sms?.otp;
 
-  if (!phone || !otp) {
+  if (!rawPhone || !otp) {
     return NextResponse.json({ error: "Invalid hook payload" }, { status: 400 });
   }
 
+  // Normalize: try both +phone and phone to handle format differences between otp-channel and Supabase
+  const phoneWithPlus    = rawPhone.startsWith("+") ? rawPhone : `+${rawPhone}`;
+  const phoneWithoutPlus = rawPhone.replace(/^\+/, "");
+  const phone            = phoneWithPlus;
+
   const db = createServiceClient();
 
-  const { data: pref } = await db
+  let { data: pref } = await db
     .from("otp_channel_prefs")
     .select("channel")
-    .eq("phone", phone)
+    .eq("phone", phoneWithPlus)
     .single();
+
+  if (!pref) {
+    const { data: pref2 } = await db
+      .from("otp_channel_prefs")
+      .select("channel")
+      .eq("phone", phoneWithoutPlus)
+      .single();
+    pref = pref2;
+  }
 
   console.log("OTP-HOOK pref lookup: phone=", phone, "channel=", pref?.channel ?? "NOT FOUND");
   if (pref?.channel === "whatsapp") {
@@ -98,7 +112,7 @@ export async function POST(req: NextRequest) {
   }
   // SMS: no action — Supabase handles delivery itself when no pref found
 
-  await db.from("otp_channel_prefs").delete().eq("phone", phone);
+  await db.from("otp_channel_prefs").delete().in("phone", [phoneWithPlus, phoneWithoutPlus]);
 
   return NextResponse.json({});
 }
