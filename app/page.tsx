@@ -163,6 +163,7 @@ export default function HomePage() {
                 transform: fade ? "translateY(0)" : "translateY(14px)",
                 transition: "opacity 0.35s ease, transform 0.35s ease",
               }}
+              className="min-h-[clamp(18rem,38vw,26rem)]"
             >
               <h1 className="text-[clamp(3rem,8.5vw,5.8rem)] font-black leading-[0.93] tracking-[-0.03em] text-white mb-5">
                 {hero.top}{" "}

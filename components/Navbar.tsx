@@ -255,7 +255,6 @@ export default function Navbar() {
             ) : (
               <>
                 <Link href="/auth?next=/profile" onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Sign In</Link>
-                <Link href="/artisan/register"   onClick={close} className="border-b border-gray-100 px-6 py-4 hover:bg-gray-50">Become an Artisan</Link>
                 <div className="px-6 py-5 space-y-3">
                   <Link href="/report" onClick={close} className="block w-full bg-green-700 text-white text-center py-3.5 text-sm font-black hover:bg-green-800 rounded-xl">
                     Hire an Artisan →

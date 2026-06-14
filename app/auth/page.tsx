@@ -443,7 +443,7 @@ function AuthForm() {
                     />
                     <p className="text-[10px] text-gray-400 mt-1">
                       {isEmailStr(suIdentifier)
-                        ? "Account created instantly — no verification needed"
+                        ? "We'll send a confirmation link to this email"
                         : "We'll send a one-time code to confirm your number"}
                     </p>
                   </div>
