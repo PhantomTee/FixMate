@@ -12,10 +12,11 @@ const META_TOKEN    = process.env.META_WA_TOKEN!;
 const META_PHONE_ID = process.env.META_PHONE_NUMBER_ID!;
 
 function verifySignature(req: NextRequest): boolean {
-  if (!HOOK_SECRET) return false;
-  // Supabase Auth hooks send the hook secret directly as the Bearer token
+  if (!HOOK_SECRET) { console.error("OTP-HOOK: SUPABASE_HOOK_SECRET not set"); return false; }
   const authHeader = req.headers.get("authorization") ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : authHeader.trim();
+  // Debug: log first/last 6 chars of each so we can compare without exposing full secrets
+  console.log(`OTP-HOOK received: "${token.slice(0,6)}...${token.slice(-6)}" stored: "${HOOK_SECRET.slice(0,6)}...${HOOK_SECRET.slice(-6)}" match:${token === HOOK_SECRET}`);
   return token === HOOK_SECRET;
 }
 
