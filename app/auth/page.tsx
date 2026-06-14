@@ -54,13 +54,13 @@ function AuthForm() {
       if (!res.ok || data.error) throw new Error(data.error ?? "Failed to send code.");
 
       if (channel === "email") {
-        setInfo(`A 6-digit code was sent to ${identifier.trim()}`);
+        setInfo(`A sign-in link was sent to ${identifier.trim()} — check your inbox and click it to sign in.`);
       } else {
-        setInfo(`A code was sent to your WhatsApp (${formatPhone(identifier)})`);
+        setInfo(`A 6-digit code was sent to your WhatsApp (${formatPhone(identifier)})`);
       }
 
       setPhone(data.phone ?? formatPhone(identifier));
-      setStep("verify");
+      if (channel !== "email") setStep("verify");
 
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
