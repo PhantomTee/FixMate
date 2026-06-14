@@ -43,13 +43,14 @@ function greeting() {
   return "Good evening";
 }
 
-interface UserProfile { id: string; name: string; phone: string; location: string; avatar?: string }
+interface UserProfile { id: string; name: string; phone: string; location: string; avatar?: string; email?: string }
 
 export default function ProfilePage() {
   const router = useRouter();
 
   // Profile / settings state
-  const [profile, setProfile]     = useState<UserProfile | null>(null);
+  const [profile, setProfile]         = useState<UserProfile | null>(null);
+  const [isArtisan, setIsArtisan]     = useState(false);
   const [editName, setEditName]   = useState("");
   const [editLoc, setEditLoc]     = useState("");
   const [avatar, setAvatar]       = useState<string | null>(null);
@@ -87,12 +88,14 @@ export default function ProfilePage() {
     // Load profile settings
     fetch("/api/auth/me")
       .then((r) => r.json())
-      .then((data: { user?: UserProfile | null }) => {
+      .then((data: { user?: UserProfile | null; artisan?: { id: string } | null; email?: string | null }) => {
         if (!data.user) { router.push("/auth?next=/profile"); return; }
-        setProfile(data.user);
-        setEditName(data.user.name ?? "");
-        setEditLoc(data.user.location ?? "");
-        setAvatar(data.user.avatar ?? null);
+        const p = { ...data.user, email: data.email ?? undefined };
+        setProfile(p);
+        setIsArtisan(!!data.artisan);
+        setEditName(p.name ?? "");
+        setEditLoc(p.location ?? "");
+        setAvatar(p.avatar ?? null);
       })
       .catch(() => router.push("/auth?next=/profile"));
 
@@ -214,6 +217,12 @@ export default function ProfilePage() {
     } catch { /* ignore */ }
   };
 
+  const signOut = async () => {
+    const { createClient } = await import("@/lib/supabase");
+    await createClient().auth.signOut();
+    router.push("/");
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -222,13 +231,14 @@ export default function ProfilePage() {
     );
   }
 
-  const user       = data?.user;
-  const jobs       = data?.jobs ?? [];
-  const active     = data?.active;
-  const booking    = data?.booking;
-  const diagnosis  = data?.diagnosis;
-  const artisan    = data?.artisan;
+  const user         = data?.user;
+  const jobs         = data?.jobs ?? [];
+  const active       = data?.active;
+  const booking      = data?.booking;
+  const diagnosis    = data?.diagnosis;
+  const artisan      = data?.artisan;
   const transactions = data?.transactions ?? [];
+  const isNewUser    = !loading && jobs.length === 0 && !active;
   const canRelease = booking?.escrowStatus === "completed";
   const escrow     = booking?.escrowStatus;
   const firstName  = profile?.name?.split(" ")[0] ?? "";
@@ -267,11 +277,18 @@ export default function ProfilePage() {
               </h1>
               {profile?.location && <p className="text-xs text-gray-400 mt-0.5 font-semibold truncate">{profile.location}</p>}
               {profile?.phone   && <p className="text-xs text-gray-400 font-mono">{profile.phone}</p>}
+              {profile?.email   && <p className="text-xs text-gray-400 font-mono truncate">{profile.email}</p>}
             </div>
-            <Link href="/report"
-              className="shrink-0 bg-green-700 text-white text-xs font-black px-3 py-2 rounded-xl hover:bg-green-800 transition-colors">
-              + New Job
-            </Link>
+            <div className="shrink-0 flex flex-col gap-1.5 items-end">
+              <Link href="/report"
+                className="bg-green-700 text-white text-xs font-black px-3 py-2 rounded-xl hover:bg-green-800 transition-colors">
+                + New Job
+              </Link>
+              <button onClick={signOut}
+                className="text-[10px] font-black text-gray-400 hover:text-red-500 transition-colors">
+                Sign out
+              </button>
+            </div>
           </div>
 
           {/* Stats strip */}
@@ -295,6 +312,54 @@ export default function ProfilePage() {
       </div>
 
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
+
+        {/* ── New-user welcome banner ── */}
+        {isNewUser && (
+          <div className="bg-green-700 rounded-2xl p-5 text-white space-y-3">
+            <div>
+              <p className="font-black text-base">Welcome to iSabi{firstName ? `, ${firstName}` : ""}!</p>
+              <p className="text-xs text-green-100 mt-1 font-semibold leading-relaxed">
+                You're all set. Post your first job and get matched to a verified artisan in minutes.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Link href="/report"
+                className="flex-1 bg-white text-green-700 text-xs font-black py-2.5 rounded-xl text-center hover:bg-green-50 transition-colors">
+                Post a Job →
+              </Link>
+              {!isArtisan && (
+                <Link href="/onboarding?intent=artisan"
+                  className="flex-1 bg-green-600 text-white text-xs font-black py-2.5 rounded-xl text-center hover:bg-green-500 transition-colors border border-green-500">
+                  Offer Your Skills →
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Artisan Hub shortcut ── */}
+        {isArtisan && (
+          <Link href="/artisan/dashboard"
+            className="flex items-center justify-between bg-gray-950 text-white rounded-2xl px-5 py-4 hover:bg-gray-800 transition-colors">
+            <div>
+              <p className="font-black text-sm">Artisan Hub</p>
+              <p className="text-xs text-gray-400 mt-0.5">Manage your jobs, earnings and profile</p>
+            </div>
+            <span className="text-gray-400 text-lg">→</span>
+          </Link>
+        )}
+
+        {/* ── Become an artisan CTA (non-artisan, has jobs) ── */}
+        {!isArtisan && !isNewUser && (
+          <Link href="/onboarding?intent=artisan"
+            className="flex items-center justify-between bg-white border border-gray-100 rounded-2xl px-5 py-4 hover:bg-gray-50 transition-colors">
+            <div>
+              <p className="font-black text-sm text-gray-950">Offer your skills</p>
+              <p className="text-xs text-gray-400 mt-0.5">Register as an artisan and start earning</p>
+            </div>
+            <span className="text-gray-300 text-lg">→</span>
+          </Link>
+        )}
 
         {/* ── Active Job ── */}
         <div>
@@ -500,6 +565,19 @@ export default function ProfilePage() {
               </p>
               <p className="text-[10px] text-gray-400 mt-1">Phone cannot be changed after registration.</p>
             </div>
+            {profile?.email && (
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Email address</label>
+                <p className="w-full border border-gray-100 rounded-xl px-4 py-3 text-sm font-semibold text-gray-400 bg-gray-50 select-none truncate">
+                  {profile.email}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  To change your password,{" "}
+                  <button onClick={signOut} className="underline hover:text-gray-600">sign out</button>
+                  {" "}then use Forgot Password on the sign-in page.
+                </p>
+              </div>
+            )}
             <button type="submit" disabled={saving}
               className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
               {saving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
