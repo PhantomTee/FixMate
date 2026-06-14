@@ -178,6 +178,12 @@ function AuthForm() {
         router.push(`/onboarding?next=${encodeURIComponent(next)}`);
       } else {
         const fmtPhone = formatPhone(suIdentifier);
+        // Insert channel pref before signUp so the hook knows to deliver OTP via WhatsApp
+        await fetch("/api/auth/otp-channel", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ phone: fmtPhone, channel: "whatsapp" }),
+        });
         const { error: signUpErr } = await supabase.auth.signUp({
           phone:   fmtPhone,
           password: suPassword,
