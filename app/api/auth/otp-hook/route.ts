@@ -13,10 +13,18 @@ const META_PHONE_ID = process.env.META_PHONE_NUMBER_ID!;
 
 function verifySignature(req: NextRequest): boolean {
   if (!HOOK_SECRET) { console.error("OTP-HOOK: SUPABASE_HOOK_SECRET not set"); return false; }
+  // Log all incoming headers (key only, no values) to find what Supabase actually sends
+  const headerKeys = Array.from(req.headers.keys()).join(", ");
+  console.log("OTP-HOOK headers received:", headerKeys);
+  // Check every header value for anything starting with v1,
+  for (const [k, v] of req.headers.entries()) {
+    if (v.startsWith("v1,") || v.startsWith("Bearer")) {
+      console.log(`OTP-HOOK candidate header [${k}]: "${v.slice(0,6)}...${v.slice(-6)}"`);
+    }
+  }
   const authHeader = req.headers.get("authorization") ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : authHeader.trim();
-  // Debug: log first/last 6 chars of each so we can compare without exposing full secrets
-  console.log(`OTP-HOOK received: "${token.slice(0,6)}...${token.slice(-6)}" stored: "${HOOK_SECRET.slice(0,6)}...${HOOK_SECRET.slice(-6)}" match:${token === HOOK_SECRET}`);
+  console.log(`OTP-HOOK auth token: "${token.slice(0,6)}...${token.slice(-6)}" stored: "${HOOK_SECRET.slice(0,6)}...${HOOK_SECRET.slice(-6)}"`);
   return token === HOOK_SECRET;
 }
 
