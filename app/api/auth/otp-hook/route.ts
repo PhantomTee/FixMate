@@ -5,32 +5,62 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "crypto";
 import { createServiceClient } from "@/lib/supabase";
 
 const HOOK_SECRET   = process.env.SUPABASE_HOOK_SECRET ?? "";
 const META_TOKEN    = process.env.META_WA_TOKEN!;
 const META_PHONE_ID = process.env.META_PHONE_NUMBER_ID!;
 
-function verifySignature(req: NextRequest): boolean {
+// Supabase auth hooks use Svix-style HMAC-SHA256 webhook signing.
+// Signed content: "${webhook-id}.${webhook-timestamp}.${rawBody}"
+// Secret format:  "v1,whsec_<base64>" | "whsec_<base64>" | "v1,<base64>"
+async function verifySignature(req: NextRequest, rawBody: string): Promise<boolean> {
   if (!HOOK_SECRET) { console.error("OTP-HOOK: SUPABASE_HOOK_SECRET not set"); return false; }
-  // Log all incoming headers (key only, no values) to find what Supabase actually sends
-  const headerKeys = Array.from(req.headers.keys()).join(", ");
-  console.log("OTP-HOOK headers received:", headerKeys);
-  // Check every header value for anything starting with v1,
-  for (const [k, v] of req.headers.entries()) {
-    if (v.startsWith("v1,") || v.startsWith("Bearer")) {
-      console.log(`OTP-HOOK candidate header [${k}]: "${v.slice(0,6)}...${v.slice(-6)}"`);
-    }
+
+  const msgId        = req.headers.get("webhook-id") ?? "";
+  const msgTimestamp = req.headers.get("webhook-timestamp") ?? "";
+  const msgSignature = req.headers.get("webhook-signature") ?? "";
+
+  if (!msgId || !msgTimestamp || !msgSignature) {
+    console.error("OTP-HOOK: missing Svix headers", { msgId: !!msgId, msgTimestamp: !!msgTimestamp, msgSignature: !!msgSignature });
+    return false;
   }
-  const authHeader = req.headers.get("authorization") ?? "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : authHeader.trim();
-  console.log(`OTP-HOOK auth token: "${token.slice(0,6)}...${token.slice(-6)}" stored: "${HOOK_SECRET.slice(0,6)}...${HOOK_SECRET.slice(-6)}"`);
-  return token === HOOK_SECRET;
+
+  const ts  = parseInt(msgTimestamp, 10);
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - ts) > 300) {
+    console.error("OTP-HOOK: webhook timestamp out of tolerance", { ts, now });
+    return false;
+  }
+
+  let secretBase64 = HOOK_SECRET;
+  if (secretBase64.startsWith("v1,whsec_"))  secretBase64 = secretBase64.slice(9);
+  else if (secretBase64.startsWith("whsec_")) secretBase64 = secretBase64.slice(6);
+  else if (secretBase64.startsWith("v1,"))    secretBase64 = secretBase64.slice(3);
+
+  const secretBytes = Buffer.from(secretBase64, "base64");
+  const toSign      = `${msgId}.${msgTimestamp}.${rawBody}`;
+  const expected    = createHmac("sha256", secretBytes).update(toSign).digest("base64");
+  const expectedBuf = Buffer.from(expected);
+
+  const receivedSigs = msgSignature.split(" ").map(s => s.replace(/^v\d+,/, ""));
+  const valid = receivedSigs.some(sig => {
+    try {
+      const sigBuf = Buffer.from(sig, "base64");
+      return sigBuf.length === expectedBuf.length && timingSafeEqual(sigBuf, expectedBuf);
+    } catch { return false; }
+  });
+
+  if (!valid) {
+    console.error("OTP-HOOK: signature mismatch", { expected: expected.slice(0, 8), received: receivedSigs.map(s => s.slice(0, 8)) });
+  }
+  return valid;
 }
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
-  const valid   = verifySignature(req);
+  const valid   = await verifySignature(req, rawBody);
   if (!valid) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
