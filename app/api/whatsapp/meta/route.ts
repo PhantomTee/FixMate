@@ -44,7 +44,22 @@ export async function POST(req: NextRequest) {
     const message = value?.messages?.[0];
     if (!message) return NextResponse.json({ ok: true });
 
-    const from = message.from; // e.g. "2348012345678"
+    const from      = message.from; // e.g. "2348012345678"
+    const messageId = message.id;
+
+    // Fix 1: Deduplication — skip if we've already processed this message ID
+    if (messageId) {
+      const { createServiceClient } = await import("@/lib/supabase");
+      const db = createServiceClient();
+      const { error: dedupError } = await db
+        .from("whatsapp_processed_messages")
+        .insert({ message_id: messageId, processed_at: new Date().toISOString() });
+      if (dedupError) {
+        // Unique constraint violation = already processed
+        return NextResponse.json({ ok: true });
+      }
+    }
+
     let text    = "";
     let imageBase64: string | null = null;
 
@@ -72,11 +87,35 @@ export async function POST(req: NextRequest) {
             const buf         = await imgRes.arrayBuffer();
             const contentType = urlData.mime_type ?? imgRes.headers.get("content-type") ?? "image/jpeg";
             imageBase64       = `data:${contentType};base64,${Buffer.from(buf).toString("base64")}`;
+          } else {
+            console.error("Meta image download failed:", imgRes.status);
+            await sendMeta(from, "I couldn't download your photo. Please try sending it again.");
+            return NextResponse.json({ ok: true });
           }
         }
       } catch (e) {
         console.error("Meta image download error:", e);
+        await sendMeta(from, "I couldn't download your photo. Please try sending it again.");
+        return NextResponse.json({ ok: true });
       }
+    } else {
+      // Fix 2: Unsupported message types — voice, sticker, reaction, location, document, etc.
+      const unsupportedTypes: Record<string, string> = {
+        audio:    "voice notes",
+        video:    "videos",
+        sticker:  "stickers",
+        reaction: "reactions",
+        location: "location pins",
+        document: "documents",
+        contacts: "contact cards",
+        order:    "orders",
+        button:   "button replies",
+      };
+      const label = unsupportedTypes[message.type] ?? message.type;
+      if (from) {
+        await sendMeta(from, `I can only read text messages and photos right now — I can't process ${label}.\n\nDescribe your issue in text or send a photo 📸, or reply *menu* to see options.`);
+      }
+      return NextResponse.json({ ok: true });
     }
 
     if (from && (text || imageBase64)) {
@@ -124,6 +163,7 @@ interface MetaPayload {
     changes?: Array<{
       value?: {
         messages?: Array<{
+          id:     string;
           from:   string;
           type:   string;
           text?:  { body: string };

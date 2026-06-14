@@ -56,7 +56,12 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (pref?.channel === "whatsapp") {
-    await sendViaWhatsApp(phone, otp);
+    // Fix 5: If Meta send fails, return non-200 so Supabase retries rather than silently losing the OTP
+    const sent = await sendViaWhatsApp(phone, otp);
+    if (!sent) {
+      console.error("WhatsApp OTP delivery failed for", phone, "— letting Supabase retry");
+      return NextResponse.json({ error: "WhatsApp delivery failed" }, { status: 500 });
+    }
   }
   // SMS: no action — Supabase handles delivery itself when no pref found
 
@@ -65,28 +70,38 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({});
 }
 
-async function sendViaWhatsApp(phone: string, otp: string) {
+// Returns true if sent successfully, false on failure
+async function sendViaWhatsApp(phone: string, otp: string): Promise<boolean> {
   const dest = phone.replace(/^\+/, "");
-  const res  = await fetch(
-    `https://graph.facebook.com/v19.0/${META_PHONE_ID}/messages`,
-    {
-      method:  "POST",
-      headers: {
-        Authorization:  `Bearer ${META_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to:   dest,
-        type: "text",
-        text: {
-          body:
-            `🔐 *iSabi Verification Code*\n\n` +
-            `Your one-time code is: *${otp}*\n\n` +
-            `Valid for 10 minutes. Do not share this code with anyone.`,
+  try {
+    const res  = await fetch(
+      `https://graph.facebook.com/v19.0/${META_PHONE_ID}/messages`,
+      {
+        method:  "POST",
+        headers: {
+          Authorization:  `Bearer ${META_TOKEN}`,
+          "Content-Type": "application/json",
         },
-      }),
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to:   dest,
+          type: "text",
+          text: {
+            body:
+              `🔐 *iSabi Verification Code*\n\n` +
+              `Your one-time code is: *${otp}*\n\n` +
+              `Valid for 10 minutes. Do not share this code with anyone.`,
+          },
+        }),
+      }
+    );
+    if (!res.ok) {
+      console.error("WhatsApp OTP send error:", await res.text());
+      return false;
     }
-  );
-  if (!res.ok) console.error("WhatsApp OTP send error:", await res.text());
+    return true;
+  } catch (err) {
+    console.error("WhatsApp OTP send exception:", err);
+    return false;
+  }
 }

@@ -53,7 +53,7 @@ export async function handleBotMessage(
     if (!session) {
       const { data: s } = await db
         .from("whatsapp_sessions")
-        .insert({ phone, state: "idle", context: {} })
+        .insert({ phone, state: "idle", context: {}, last_message_at: new Date().toISOString() })
         .select()
         .single();
       session = s;
@@ -62,6 +62,15 @@ export async function handleBotMessage(
     if (!session) {
       await send(phone, "Sorry, having trouble right now. Please try again.");
       return;
+    }
+
+    // Fix 3: Session expiry — reset stale mid-flow sessions after 24 hours
+    const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;
+    const lastAt = session.last_message_at ? new Date(session.last_message_at as string).getTime() : 0;
+    const midFlowStates = ["registering_name","registering_location","artisan_reg_name","artisan_reg_category","artisan_reg_location","artisan_reg_experience","artisan_reg_id","awaiting_issue","awaiting_followup","diagnosing","selecting_artisan","awaiting_confirm","change_location","updating_location"];
+    if (Date.now() - lastAt > SESSION_EXPIRY_MS && midFlowStates.includes(session.state as string)) {
+      await db.from("whatsapp_sessions").update({ state: "idle", context: {} }).eq("phone", phone);
+      session = { ...session, state: "idle", context: {} };
     }
 
     await db
@@ -796,13 +805,13 @@ async function handleJobDone(
   const customerPhone = customer?.phone ?? await getCustomerPhoneFromUsers(booking.job_requests?.user_id, db);
 
   if (customerPhone) {
-    // Set customer session to awaiting_rating
-    const dest = customerPhone.startsWith("whatsapp:") ? customerPhone : `whatsapp:${customerPhone}`;
+    // Fix 4: Use the send param (not internal sendWhatsApp) so errors are caught and consistent
+    const dest = normalizePhone(customerPhone);
     await db.from("whatsapp_sessions").upsert(
       { phone: dest, state: "awaiting_rating", context: { bookingId, artisanId: artisan.id, artisanName: artisan.full_name }, last_message_at: new Date().toISOString() },
       { onConflict: "phone" }
     );
-    await sendWhatsApp(dest,
+    await send(dest,
       `🎉 Your job is done!\n\n` +
       `*${artisan.full_name as string}* has marked it complete.\n\n` +
       `How would you rate the service?\n\nReply with a number:\n⭐ 1 – Poor\n⭐⭐ 2 – Below average\n⭐⭐⭐ 3 – Average\n⭐⭐⭐⭐ 4 – Good\n⭐⭐⭐⭐⭐ 5 – Excellent`
@@ -1013,7 +1022,7 @@ async function notifyCustomer(jobId: string, message: string, db: any) {
   const customerPhone = await getCustomerPhoneFromBotCustomers(job.user_id, db)
     ?? await getCustomerPhoneFromUsers(job.user_id, db);
 
-  if (customerPhone) await sendWhatsApp(customerPhone, message);
+  if (customerPhone) await sendWhatsApp(normalizePhone(customerPhone), message);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1028,9 +1037,21 @@ async function getCustomerPhoneFromUsers(userId: string, db: any): Promise<strin
   return (data?.phone as string) ?? null;
 }
 
+// Fix 7: Normalize phone to raw digits (no + or whatsapp: prefix)
+function normalizePhone(phone: string): string {
+  return phone.replace(/^whatsapp:\+?/, "").replace(/^\+/, "");
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function setSession(db: any, phone: string, state: string, context: Record<string, unknown>) {
-  await db.from("whatsapp_sessions").update({ state, context }).eq("phone", phone);
+  // Fix 6: Log if update hits no rows (session row missing — shouldn't happen but helps debug)
+  const { count, error } = await db
+    .from("whatsapp_sessions")
+    .update({ state, context })
+    .eq("phone", phone)
+    .select("id", { count: "exact", head: true });
+  if (error) console.error("setSession error:", error);
+  else if (count === 0) console.warn("setSession: no row found for phone", phone);
 }
 
 async function sendWhatsApp(to: string, message: string): Promise<void> {
@@ -1038,7 +1059,8 @@ async function sendWhatsApp(to: string, message: string): Promise<void> {
   const metaPhoneId = process.env.META_PHONE_NUMBER_ID;
 
   if (metaToken && metaPhoneId) {
-    const dest = to.replace(/^whatsapp:\+?/, "").replace(/^\+/, "");
+    // Fix 7: Always normalize — strip whatsapp: prefix and leading +
+    const dest = normalizePhone(to);
     const res  = await fetch(
       `https://graph.facebook.com/v19.0/${metaPhoneId}/messages`,
       {
@@ -1065,7 +1087,9 @@ async function sendWhatsApp(to: string, message: string): Promise<void> {
   if (accountSid && authToken && fromNumber) {
     const { default: twilio } = await import("twilio");
     const client = twilio(accountSid, authToken);
-    const dest   = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
-    await client.messages.create({ from: fromNumber, to: dest, body: message });
+    // Fix 7: Always normalize to whatsapp:+E.164 for Twilio
+    const rawDigits = normalizePhone(to);
+    const twilioTo  = `whatsapp:+${rawDigits}`;
+    await client.messages.create({ from: fromNumber, to: twilioTo, body: message });
   }
 }
