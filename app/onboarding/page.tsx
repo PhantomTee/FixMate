@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { useGeoLocation } from "@/lib/useGeoLocation";
 
-/* ── Nigerian states ─────────────────────────────────────── */
 const NG_STATES = [
   "Abia","Adamawa","Akwa Ibom","Anambra","Bauchi","Bayelsa","Benue","Borno",
   "Cross River","Delta","Ebonyi","Edo","Ekiti","Enugu","FCT","Gombe","Imo",
@@ -15,7 +14,6 @@ const NG_STATES = [
   "Yobe","Zamfara",
 ];
 
-/* ── Trade cards ─────────────────────────────────────────── */
 const TRADES = [
   "Plumber","Electrician","AC Repair","Tailor","Generator Repair",
   "Cleaning","Shoemaker","Vulcanizer","Carpenter","Painter",
@@ -24,7 +22,6 @@ const TRADES = [
 
 type Intent = "hire" | "artisan" | null;
 
-/* ── Step indicator ─────────────────────────────────────── */
 function StepDots({ total, current }: { total: number; current: number }) {
   return (
     <div className="flex items-center gap-1.5 justify-center mb-6">
@@ -42,50 +39,47 @@ function StepDots({ total, current }: { total: number; current: number }) {
 function OnboardingForm() {
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const fileRef      = useRef<HTMLInputElement>(null);
-  const selfieRef    = useRef<HTMLInputElement>(null);
   const portfolioRef = useRef<HTMLInputElement>(null);
+  const selfieRef    = useRef<HTMLInputElement>(null);
+  const ninRef       = useRef<HTMLInputElement>(null);
 
-  const nextParam = searchParams.get("next") ?? "/report";
+  const nextParam   = searchParams.get("next") ?? "/profile";
   const intentParam = searchParams.get("intent") as "artisan" | null;
 
-  // Global state
-  const [step, setStep]     = useState(intentParam === "artisan" ? 1 : 1);
-  const [intent, setIntent] = useState<Intent>(intentParam ?? null);
-  const [error, setError]   = useState("");
+  /* Step numbering:
+     1 = intent (hire vs artisan)
+     2 = trade (artisan)
+     3 = location
+     4 = portfolio (artisan)
+     5 = rates (artisan)
+     6 = KYC (artisan)
+  */
+  const [step,    setStep]    = useState(1);
+  const [intent,  setIntent]  = useState<Intent>(intentParam ?? null);
+  const [error,   setError]   = useState("");
   const [loading, setLoading] = useState(false);
+  const [ready,   setReady]   = useState(false);
+  const [userName, setUserName] = useState("");
 
-  // Step 2: identity
-  const [name, setName]             = useState("");
-  const [identifier, setIdentifier] = useState(""); // phone or email
-  const [password, setPassword]     = useState("");
-
-  // Step 3: OTP (phone only)
-  const [otp, setOtp] = useState("");
-
-  const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
-  const isEmailUser = isEmail(identifier);
-
-  // Step 4: trade (artisan)
+  // Step 2: trade
   const [trade, setTrade] = useState("");
 
-  // Step 5: location
-  const [state, setState]       = useState("");
-  const [lga, setLga]           = useState("");
+  // Step 3: location
+  const [state,    setState]    = useState("");
+  const [lga,      setLga]      = useState("");
   const [landmark, setLandmark] = useState("");
   const geo = useGeoLocation();
 
-  // Step 6: portfolio (artisan)
+  // Step 4: portfolio
   const [portfolio, setPortfolio] = useState<string[]>([]);
 
-  // Step 7: rate (artisan)
+  // Step 5: rates
   const [calloutFee, setCalloutFee] = useState("");
-  const [dailyRate, setDailyRate]   = useState("");
+  const [dailyRate,  setDailyRate]  = useState("");
 
-  // Step 8: selfie + NIN card + KYC (artisan)
-  const [selfie, setSelfie]       = useState<string | null>(null);
-  const [ninCard, setNinCard]     = useState<string | null>(null);
-  const ninRef                    = useRef<HTMLInputElement>(null);
+  // Step 6: KYC
+  const [selfie,    setSelfie]    = useState<string | null>(null);
+  const [ninCard,   setNinCard]   = useState<string | null>(null);
   const [kycResult, setKycResult] = useState<{
     extracted_name: string;
     extracted_nin: string;
@@ -95,171 +89,45 @@ function OnboardingForm() {
     reason: string;
   } | null>(null);
   const [kycLoading, setKycLoading] = useState(false);
-  const [sessionChecked, setSessionChecked] = useState(false);
 
-  // If user is already logged in, skip account-creation steps
+  /* Guard: require auth */
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        // Pre-fill name from existing session metadata
-        const sessionName = (session.user.user_metadata?.name as string) ?? "";
-        if (sessionName) setName(sessionName);
-
-        // If intent was passed via URL and it's artisan, jump straight to trade
-        if (intentParam === "artisan") {
-          setIntent("artisan");
-          setStep(4);
-        } else if (intentParam === null && step === 1) {
-          // Already logged in on the intent screen — skip to hire finish or artisan trade
-          // Leave on step 1 so user can still choose; clicking artisan will jump to 4
-        }
+      if (!session?.user) {
+        const dest = intentParam
+          ? `/auth?next=${encodeURIComponent(`/onboarding?intent=${intentParam}`)}`
+          : `/auth?next=${encodeURIComponent("/onboarding")}`;
+        router.replace(dest);
+        return;
       }
-      setSessionChecked(true);
+      const name = (session.user.user_metadata?.name as string) ?? "";
+      setUserName(name);
+      if (intentParam === "artisan") {
+        setIntent("artisan");
+        setStep(2);
+      }
+      setReady(true);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When a logged-in user selects intent, skip account creation
-  const handleIntent = async (chosen: "hire" | "artisan") => {
-    setIntent(chosen);
-    const supabase = createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      if (chosen === "artisan") {
-        go(4); // already have an account — go to trade selection
-      } else {
-        await finishHireFlow();
-      }
-    } else {
-      go(2); // no session — go to account creation
-    }
-  };
-
   const go = (n: number) => { setError(""); setStep(n); };
 
-  const finishHireFlow = async () => {
-    const dest = nextParam === "/dashboard" ? "/profile" : nextParam;
-    router.push(dest);
-  };
-
-  const totalSteps = intent === "artisan" ? 8 : 3;
   const isArtisan  = intent === "artisan";
+  const totalSteps = isArtisan ? 6 : 1;
 
-  const fmtPhone = (p: string) => {
-    const digits = p.replace(/\D/g, "");
-    if (digits.startsWith("0") && digits.length >= 10) return `+234${digits.slice(1)}`;
-    if (digits.startsWith("234"))                        return `+${digits}`;
-    if (!digits.startsWith("+"))                         return `+234${digits}`;
-    return `+${digits}`;
-  };
-  const formattedPhone = isEmailUser ? "" : fmtPhone(identifier);
-
-  /* ── Step 2: sign up ─────────────────────────────────── */
-  const handleSignUp = async () => {
-    if (!name.trim())        { setError("Enter your full name."); return; }
-    if (!identifier.trim())  { setError("Enter your phone number or email."); return; }
-    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
-
-    setLoading(true);
-    setError("");
-    const supabase = createClient();
-
-    try {
-      if (isEmailUser) {
-        // Email path: create via service route (email_confirm: true, no verification email)
-        const res = await fetch("/api/auth/signup", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ email: identifier.trim(), password, name: name.trim() }),
-        });
-        const data = await res.json() as { error?: string };
-        if (!res.ok) throw new Error(data.error ?? "Sign-up failed.");
-
-        // Sign in immediately (account is already confirmed)
-        const { error: signInErr } = await supabase.auth.signInWithPassword({
-          email: identifier.trim().toLowerCase(),
-          password,
-        });
-        if (signInErr) throw new Error(signInErr.message);
-
-        // Save profile
-        await fetch("/api/auth/me", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ name: name.trim(), phone: null, location: "" }),
-        });
-
-        if (isArtisan) go(4); else await finishHireFlow();
-      } else {
-        // Phone path: send OTP, go to step 3
-        const { error: signUpErr } = await supabase.auth.signUp({
-          phone:   fmtPhone(identifier),
-          password,
-          options: { data: { name: name.trim() } },
-        });
-        if (signUpErr) throw new Error(signUpErr.message);
-        go(3);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-up failed. Try again.");
-    } finally {
-      setLoading(false);
+  /* Intent selection */
+  const handleIntent = (chosen: "hire" | "artisan") => {
+    setIntent(chosen);
+    if (chosen === "hire") {
+      router.push(nextParam === "/dashboard" ? "/profile" : nextParam);
+    } else {
+      go(2);
     }
   };
 
-  /* ── Step 3: verify OTP (phone users only) ──────────── */
-  const handleVerifyOtp = async () => {
-    if (otp.length < 4) { setError("Enter the 6-digit code."); return; }
-    setLoading(true);
-    setError("");
-    const supabase = createClient();
-    try {
-      const { error: verifyErr } = await supabase.auth.verifyOtp({
-        phone: formattedPhone,
-        token: otp,
-        type:  "sms",
-      });
-      if (verifyErr) throw new Error(verifyErr.message);
-
-      await fetch("/api/auth/me", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ name: name.trim(), phone: formattedPhone, location: "" }),
-      });
-
-      if (isArtisan) go(4); else await finishHireFlow();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Incorrect code. Try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* ── Step 5: save location ───────────────────────────── */
-  const handleLocation = () => {
-    if (!state) { setError("Select your state."); return; }
-    if (!lga.trim()) { setError("Enter your LGA."); return; }
-    setError("");
-    go(isArtisan ? 6 : 8);
-  };
-
-  /* ── Step 6: portfolio photos ────────────────────────── */
-  const handlePortfolioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    const readers = files.slice(0, 3 - portfolio.length).map((file) => {
-      return new Promise<string>((resolve) => {
-        const r = new FileReader();
-        r.onloadend = () => resolve(r.result as string);
-        r.readAsDataURL(file);
-      });
-    });
-    Promise.all(readers).then((images) =>
-      setPortfolio((prev) => [...prev, ...images].slice(0, 3))
-    );
-  };
-
-    /* ── Image compression helper (keeps payload under 4.5 MB) ── */
+  /* Image compression */
   const compressImage = (file: File, maxPx = 800, quality = 0.72): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -268,7 +136,7 @@ function OnboardingForm() {
         const img = new Image();
         img.onerror = reject;
         img.onload = () => {
-          const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+          const scale  = Math.min(1, maxPx / Math.max(img.width, img.height));
           const canvas = document.createElement("canvas");
           canvas.width  = Math.round(img.width  * scale);
           canvas.height = Math.round(img.height * scale);
@@ -280,27 +148,28 @@ function OnboardingForm() {
       reader.readAsDataURL(file);
     });
 
-  /* ── Step 8: selfie ──────────────────────────────────── */
-  const handleSelfieChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSelfie(await compressImage(file));
+  /* Portfolio */
+  const handlePortfolioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    const readers = files.slice(0, 3 - portfolio.length).map((file) =>
+      new Promise<string>((resolve) => {
+        const r = new FileReader();
+        r.onloadend = () => resolve(r.result as string);
+        r.readAsDataURL(file);
+      })
+    );
+    Promise.all(readers).then((images) =>
+      setPortfolio((prev) => [...prev, ...images].slice(0, 3))
+    );
   };
 
-  /* ── Step 8: NIN card handler ───────────────────────── */
-  const handleNinCardChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setNinCard(await compressImage(file));
-  };
-
-  /* ── Step 8: iSabi AI KYC verification ──────────────── */
+  /* KYC */
   const runKyc = async () => {
-    if (!selfie || !ninCard) { setError("Upload both your NIN card and selfie before verifying."); return; }
+    if (!selfie || !ninCard) { setError("Upload both your NIN card and selfie."); return; }
     setKycLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/kyc/verify", {
+      const res  = await fetch("/api/kyc/verify", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ ninCard, selfie }),
@@ -315,29 +184,33 @@ function OnboardingForm() {
     }
   };
 
-  /* ── Final artisan submit ────────────────────────────── */
+  /* Final artisan submit */
   const handleArtisanSubmit = async () => {
     setLoading(true);
     setError("");
     const fullLocation = [landmark, lga, state].filter(Boolean).join(", ");
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const phone = (user?.phone as string | undefined) ?? "";
+
     try {
       const res = await fetch("/api/artisans/register", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fullName:         name.trim(),
-          phone:            isEmailUser ? "" : formattedPhone,
-          category:         trade,
-          location:         fullLocation,
-          yearsExperience:  0,
-          skills:           [trade],
-          serviceRadiusKm:  10,
-          calloutFeeNaira:  parseInt(calloutFee || "0", 10),
-          dailyRateNaira:   parseInt(dailyRate || "0", 10),
-          portfolioPhotos:  portfolio,
-          selfieUrl:        selfie ?? "",
-          ninVerified:      kycResult?.verified ?? false,
-          ninReference:     kycResult?.extracted_nin ?? "",
+          fullName:        userName,
+          phone,
+          category:        trade,
+          location:        fullLocation,
+          yearsExperience: 0,
+          skills:          [trade],
+          serviceRadiusKm: 10,
+          calloutFeeNaira: parseInt(calloutFee || "0", 10),
+          dailyRateNaira:  parseInt(dailyRate  || "0", 10),
+          portfolioPhotos: portfolio,
+          selfieUrl:       selfie ?? "",
+          ninVerified:     kycResult?.verified ?? false,
+          ninReference:    kycResult?.extracted_nin ?? "",
         }),
       });
       if (!res.ok) {
@@ -352,27 +225,26 @@ function OnboardingForm() {
     }
   };
 
-  /* ════════════════════════════════════════════════════════
-     RENDER
-  ════════════════════════════════════════════════════════ */
+  /* ════════════════════════ RENDER ════════════════════════ */
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <span className="w-6 h-6 border-2 border-green-700/30 border-t-green-700 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <Link href="/" className="flex items-center mb-6 justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/isabi-logo.svg" alt="iSabi" className="h-9 w-auto" />
         </Link>
 
-        {!sessionChecked && (
-          <div className="flex justify-center py-8">
-            <span className="w-6 h-6 border-2 border-green-700/30 border-t-green-700 rounded-full animate-spin" />
-          </div>
-        )}
+        <StepDots total={totalSteps} current={step} />
 
-        {sessionChecked && <StepDots total={totalSteps} current={step} />}
-
-        {sessionChecked && <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
 
           {error && (
             <div className="bg-red-50 border border-red-100 px-4 py-3 rounded-xl text-xs text-red-700 font-semibold">{error}</div>
@@ -382,7 +254,9 @@ function OnboardingForm() {
           {step === 1 && (
             <>
               <div>
-                <h1 className="text-xl font-black text-gray-950">Welcome to iSabi</h1>
+                <h1 className="text-xl font-black text-gray-950">
+                  {userName ? `Welcome, ${userName.split(" ")[0]}` : "Welcome to iSabi"}
+                </h1>
                 <p className="text-xs text-gray-400 mt-1 font-semibold">How do you want to use iSabi?</p>
               </div>
               <div className="grid grid-cols-1 gap-3">
@@ -407,83 +281,11 @@ function OnboardingForm() {
                   </div>
                 </button>
               </div>
-              <p className="text-center text-xs text-gray-400">
-                Already have an account?{" "}
-                <Link href="/auth" className="text-green-700 font-black">Sign in</Link>
-              </p>
             </>
           )}
 
-          {/* ── Step 2: Identity ── */}
-          {step === 2 && (
-            <>
-              <div>
-                <h1 className="text-xl font-black text-gray-950">Create your account</h1>
-                <p className="text-xs text-gray-400 mt-1 font-semibold">Use your phone number or email</p>
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Full name</label>
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Fatima Musa" autoFocus
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Phone or Email</label>
-                <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="080xxxxxxxx or you@email.com"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
-                <p className="text-[10px] text-gray-400 mt-1">
-                  {isEmailUser ? "Account created instantly — no verification needed" : "We’ll send a one-time code to this number"}
-                </p>
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Password</label>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
-                <p className={`text-[10px] mt-1 font-semibold ${password.length >= 8 ? "text-green-600" : "text-gray-400"}`}>
-                  Minimum 8 characters
-                </p>
-              </div>
-              <button onClick={handleSignUp} disabled={loading || !name.trim() || !identifier.trim() || password.length < 8}
-                className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
-                {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {loading ? "Creating account…" : "Continue →"}
-              </button>
-              <button onClick={() => go(1)} className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">← Back</button>
-            </>
-          )}
-
-          {/* ── Step 3: OTP ── */}
-          {step === 3 && (
-            <>
-              <div>
-                <h1 className="text-xl font-black text-gray-950">Verify your number</h1>
-                <p className="text-xs text-gray-400 mt-1 font-semibold">
-                  Enter the 6-digit code sent to {formattedPhone}
-                </p>
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Verification code</label>
-                <input type="text" inputMode="numeric" maxLength={6}
-                  value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                  placeholder="123456" autoFocus
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-lg font-black text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
-              </div>
-              <button onClick={handleVerifyOtp} disabled={loading || otp.length < 4}
-                className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
-                {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {loading ? "Verifying…" : "Verify & Continue →"}
-              </button>
-              <p className="text-xs text-gray-400 text-center">
-                Didn&apos;t receive it?{" "}
-                <button onClick={() => go(2)} className="text-green-700 font-black">Change number</button>
-              </p>
-            </>
-          )}
-
-          {/* ── Step 4: Trade (artisan only) ── */}
-          {step === 4 && isArtisan && (
+          {/* ── Step 2: Trade ── */}
+          {step === 2 && isArtisan && (
             <>
               <div>
                 <h1 className="text-xl font-black text-gray-950">What&apos;s your trade?</h1>
@@ -499,7 +301,7 @@ function OnboardingForm() {
                   </button>
                 ))}
               </div>
-              <button onClick={() => { if (!trade) { setError("Pick a trade."); return; } go(5); }}
+              <button onClick={() => { if (!trade) { setError("Pick a trade."); return; } go(3); }}
                 disabled={!trade}
                 className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40">
                 Continue →
@@ -507,8 +309,8 @@ function OnboardingForm() {
             </>
           )}
 
-          {/* ── Step 5: Location ── */}
-          {step === 5 && (
+          {/* ── Step 3: Location ── */}
+          {step === 3 && (
             <>
               <div>
                 <h1 className="text-xl font-black text-gray-950">Where are you based?</h1>
@@ -517,20 +319,14 @@ function OnboardingForm() {
               <button
                 type="button"
                 onClick={() => geo.detect(({ city, state: detectedState }) => {
-                  const match = NG_STATES.find(
-                    (s) => s.toLowerCase() === detectedState.toLowerCase()
-                  );
+                  const match = NG_STATES.find((s) => s.toLowerCase() === detectedState.toLowerCase());
                   if (match) setState(match);
                   if (city) setLga(city);
                 })}
                 disabled={geo.loading}
                 className="w-full flex items-center justify-center gap-2 py-2.5 border border-green-600 text-green-700 text-sm font-black rounded-xl hover:bg-green-50 transition-colors disabled:opacity-50"
               >
-                {geo.loading ? (
-                  <span className="animate-spin text-base">⟳</span>
-                ) : (
-                  <span>📍</span>
-                )}
+                <span>{geo.loading ? "⟳" : "📍"}</span>
                 {geo.loading ? "Detecting location…" : "Use my location"}
               </button>
               {geo.error && <p className="text-xs text-red-500 font-semibold -mt-2">{geo.error}</p>}
@@ -549,26 +345,29 @@ function OnboardingForm() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Nearest bus stop / landmark</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Nearest landmark</label>
                 <input type="text" value={landmark} onChange={(e) => setLandmark(e.target.value)}
-                  placeholder="e.g. Allen Junction, Oshodi Underbridge"
+                  placeholder="e.g. Allen Junction"
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
-                <p className="text-[10px] text-gray-400 mt-1">Optional — helps clients find you more easily</p>
+                <p className="text-[10px] text-gray-400 mt-1">Optional</p>
               </div>
-              <button onClick={handleLocation}
-                className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors">
+              <button onClick={() => {
+                if (!state) { setError("Select your state."); return; }
+                if (!lga.trim()) { setError("Enter your LGA."); return; }
+                go(isArtisan ? 4 : 1);
+              }} className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors">
                 Continue →
               </button>
-              <button onClick={() => go(isArtisan ? 4 : 3)} className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">← Back</button>
+              <button onClick={() => go(isArtisan ? 2 : 1)} className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">← Back</button>
             </>
           )}
 
-          {/* ── Step 6: Portfolio (artisan only) ── */}
-          {step === 6 && isArtisan && (
+          {/* ── Step 4: Portfolio ── */}
+          {step === 4 && isArtisan && (
             <>
               <div>
                 <h1 className="text-xl font-black text-gray-950">Show your work</h1>
-                <p className="text-xs text-gray-400 mt-1 font-semibold">Upload up to 3 photos of past jobs — this is your portfolio</p>
+                <p className="text-xs text-gray-400 mt-1 font-semibold">Upload up to 3 photos of past jobs</p>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {[0, 1, 2].map((i) => (
@@ -587,16 +386,16 @@ function OnboardingForm() {
               {portfolio.length > 0 && (
                 <button onClick={() => setPortfolio([])} className="text-xs font-black text-red-400 hover:text-red-600">Clear photos</button>
               )}
-              <button onClick={() => go(7)}
+              <button onClick={() => go(5)}
                 className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors">
                 {portfolio.length === 0 ? "Skip for now →" : "Continue →"}
               </button>
-              <button onClick={() => go(5)} className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">← Back</button>
+              <button onClick={() => go(3)} className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">← Back</button>
             </>
           )}
 
-          {/* ── Step 7: Rate (artisan only) ── */}
-          {step === 7 && isArtisan && (
+          {/* ── Step 5: Rates ── */}
+          {step === 5 && isArtisan && (
             <>
               <div>
                 <h1 className="text-xl font-black text-gray-950">Set your rates</h1>
@@ -607,7 +406,7 @@ function OnboardingForm() {
                 <input type="number" value={calloutFee} onChange={(e) => setCalloutFee(e.target.value)}
                   placeholder="e.g. 2000"
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
-                <p className="text-[10px] text-gray-400 mt-1">Charged just for showing up (even if no work done)</p>
+                <p className="text-[10px] text-gray-400 mt-1">Charged just for showing up</p>
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Daily rate (₦)</label>
@@ -616,29 +415,26 @@ function OnboardingForm() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900" />
                 <p className="text-[10px] text-gray-400 mt-1">Your rate per full working day</p>
               </div>
-              <button onClick={() => go(8)}
+              <button onClick={() => go(6)}
                 className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors">
                 Continue →
               </button>
-              <button onClick={() => go(6)} className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">← Back</button>
+              <button onClick={() => go(4)} className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">← Back</button>
             </>
           )}
 
-          {/* ── Step 8: Identity Verification + Review (artisan only) ── */}
-          {step === 8 && isArtisan && (
+          {/* ── Step 6: KYC ── */}
+          {step === 6 && isArtisan && (
             <>
               <div>
                 <h1 className="text-xl font-black text-gray-950">Identity verification</h1>
                 <p className="text-xs text-gray-400 mt-1 font-semibold">
-                  Upload your NIN slip and take a selfie. iSabi AI verifies your identity instantly at no cost.
+                  Upload your NIN slip and a selfie. iSabi AI verifies you instantly.
                 </p>
               </div>
 
-              {/* NIN card upload */}
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
-                  NIN Slip / Government ID
-                </label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">NIN Slip / Government ID</label>
                 <button type="button" onClick={() => ninRef.current?.click()}
                   className={`w-full border-2 border-dashed rounded-xl flex flex-col items-center justify-center py-4 transition-colors ${
                     ninCard ? "border-green-300 bg-green-50" : "border-gray-200 hover:border-green-400"
@@ -647,18 +443,16 @@ function OnboardingForm() {
                     ? <img src={ninCard} alt="NIN card" className="max-h-28 object-contain rounded-lg" />
                     : <>
                         <p className="text-xs font-black text-gray-500">Tap to upload NIN slip or ID card</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">Accepted: NIN slip, voter card, driver&apos;s licence</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">NIN slip, voter card, driver&apos;s licence</p>
                       </>
                   }
                 </button>
-                <input ref={ninRef} type="file" accept="image/*" className="hidden" onChange={handleNinCardChange} />
+                <input ref={ninRef} type="file" accept="image/*" className="hidden"
+                  onChange={async (e) => { const f = e.target.files?.[0]; if (f) setNinCard(await compressImage(f)); }} />
               </div>
 
-              {/* Selfie */}
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
-                  Live Selfie
-                </label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Live Selfie</label>
                 <button type="button" onClick={() => selfieRef.current?.click()}
                   className={`w-full border-2 border-dashed rounded-xl flex flex-col items-center justify-center py-4 transition-colors ${
                     selfie ? "border-green-300 bg-green-50" : "border-gray-200 hover:border-green-400"
@@ -671,10 +465,10 @@ function OnboardingForm() {
                       </>
                   }
                 </button>
-                <input ref={selfieRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handleSelfieChange} />
+                <input ref={selfieRef} type="file" accept="image/*" capture="user" className="hidden"
+                  onChange={async (e) => { const f = e.target.files?.[0]; if (f) setSelfie(await compressImage(f)); }} />
               </div>
 
-              {/* KYC verify button */}
               {!kycResult && (
                 <button onClick={runKyc} disabled={kycLoading || !ninCard || !selfie}
                   className="w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
@@ -683,7 +477,6 @@ function OnboardingForm() {
                 </button>
               )}
 
-              {/* KYC result */}
               {kycResult && (
                 <div className={`rounded-xl p-4 text-xs space-y-1.5 border ${kycResult.verified ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
                   <p className={`font-black text-sm ${kycResult.verified ? "text-green-700" : "text-red-700"}`}>
@@ -717,12 +510,10 @@ function OnboardingForm() {
                 </div>
               )}
 
-              {/* Application summary */}
               <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-xs">
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Application Summary</p>
                 {[
-                  ["Name", name],
-                  [isEmailUser ? "Email" : "Phone", isEmailUser ? identifier.trim() : formattedPhone],
+                  ["Name", userName],
                   ["Trade", trade],
                   ["Location", [landmark, lga, state].filter(Boolean).join(", ")],
                   calloutFee ? ["Call-out fee", `₦${parseInt(calloutFee).toLocaleString()}`] : null,
@@ -731,39 +522,40 @@ function OnboardingForm() {
                 ].filter(Boolean).map((row) => {
                   const [label, value] = row as [string, string];
                   return (
-                  <div key={label} className="flex justify-between gap-2">
-                    <span className="text-gray-400 font-semibold shrink-0">{label}</span>
-                    <span className="font-black text-gray-950 text-right">{value}</span>
-                  </div>
+                    <div key={label} className="flex justify-between gap-2">
+                      <span className="text-gray-400 font-semibold shrink-0">{label}</span>
+                      <span className="font-black text-gray-950 text-right">{value}</span>
+                    </div>
                   );
                 })}
               </div>
 
-              {!kycResult?.verified && !kycResult && (
+              {!kycResult && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 font-semibold">
-                  ⚠️ Skipping verification will tag your profile as <span className="font-black">Unverified</span>. Clients will see a warning when booking you. You can complete KYC later from your dashboard.
+                  Skipping verification will tag your profile as <span className="font-black">Unverified</span>. You can complete KYC later from your dashboard.
                 </div>
               )}
 
-              <button onClick={handleArtisanSubmit} disabled={loading || (!kycResult?.verified && !!kycResult && !kycResult.verified)}
-                className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+              <button
+                onClick={handleArtisanSubmit}
+                disabled={loading || (!!kycResult && !kycResult.verified)}
+                className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+              >
                 {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {loading ? "Submitting application…" : kycResult?.verified ? "Submit Verified Application" : "Submit Without Verification →"}
+                {loading ? "Submitting…" : kycResult?.verified ? "Submit Verified Application" : "Submit Without Verification →"}
               </button>
               <p className="text-[10px] text-gray-400 text-center">
                 Reviewed within 24 hours. You will receive a WhatsApp notification when approved.
               </p>
-              <button onClick={() => go(7)} className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">Back</button>
+              <button onClick={() => go(5)} className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">Back</button>
             </>
           )}
 
-        </div>}
+        </div>
 
-        {sessionChecked && (
-          <p className="text-center text-[10px] text-gray-400 mt-4 font-semibold">
-            By continuing you agree to iSabi&apos;s terms of service.
-          </p>
-        )}
+        <p className="text-center text-[10px] text-gray-400 mt-4 font-semibold">
+          By continuing you agree to iSabi&apos;s terms of service.
+        </p>
       </div>
     </div>
   );

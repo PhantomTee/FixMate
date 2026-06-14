@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
-type Channel  = "email" | "whatsapp";
-type AuthMode = "otp" | "password";
+type Tab     = "signin" | "signup" | "forgot";
+type Channel = "email" | "whatsapp";
+type Mode    = "otp" | "password";
 
 function formatPhone(p: string): string {
   const digits = p.replace(/\D/g, "");
@@ -15,34 +16,67 @@ function formatPhone(p: string): string {
   return p.startsWith("+") ? p.trim() : `+234${digits}`;
 }
 
+function isEmailStr(v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+}
+
+function Spinner() {
+  return <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />;
+}
+
+/* ── Shared input classes ── */
+const INPUT = "w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900";
+const BTN_GREEN = "w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2";
+const LABEL = "text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5";
+
 function AuthForm() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const next         = searchParams.get("next") ?? "/profile";
 
-  const [mode,       setMode]       = useState<AuthMode>("otp");
+  const [tab, setTab] = useState<Tab>("signin");
+
+  /* ── Sign In state ── */
+  const [mode,       setMode]       = useState<Mode>("otp");
   const [channel,    setChannel]    = useState<Channel>("email");
   const [identifier, setIdentifier] = useState("");
-  const [otp,        setOtp]        = useState("");
   const [password,   setPassword]   = useState("");
-  const [step,       setStep]       = useState<"input" | "verify">("input");
-  const [phone,      setPhone]      = useState(""); // formatted phone for verify
-  const [loading,    setLoading]    = useState(false);
-  const [error,      setError]      = useState("");
-  const [info,       setInfo]       = useState("");
+  const [otp,        setOtp]        = useState("");
+  const [otpStep,    setOtpStep]    = useState<"input" | "verify">("input");
+  const [phone,      setPhone]      = useState("");
 
-  const channelTabs: { key: Channel; label: string; icon: string; placeholder: string }[] = [
-    { key: "email",    label: "Email",     icon: "✉️", placeholder: "you@example.com" },
-    { key: "whatsapp", label: "WhatsApp",  icon: "📱", placeholder: "08012345678"      },
-  ];
+  /* ── Sign Up state ── */
+  const [suName,       setSuName]       = useState("");
+  const [suIdentifier, setSuIdentifier] = useState("");
+  const [suPassword,   setSuPassword]   = useState("");
+  const [suOtp,        setSuOtp]        = useState("");
+  const [suStep,       setSuStep]       = useState<"form" | "verify">("form");
+  const [suPhone,      setSuPhone]      = useState("");
 
-  // ── Send OTP ──────────────────────────────────────────────────────────────
+  /* ── Forgot Password state ── */
+  const [fpEmail, setFpEmail] = useState("");
+  const [fpSent,  setFpSent]  = useState(false);
+
+  /* ── Shared ── */
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState("");
+  const [info,    setInfo]    = useState("");
+
+  const reset = (t: Tab) => {
+    setTab(t);
+    setError("");
+    setInfo("");
+    setLoading(false);
+  };
+
+  /* ═══════════════════════════════════════════════════
+     SIGN IN
+  ═══════════════════════════════════════════════════ */
   const handleSendOtp = async () => {
     if (!identifier.trim()) return;
     setLoading(true);
     setError("");
     setInfo("");
-
     try {
       const res  = await fetch("/api/auth/send-otp", {
         method:  "POST",
@@ -50,18 +84,15 @@ function AuthForm() {
         body:    JSON.stringify({ identifier: identifier.trim(), channel }),
       });
       const data = await res.json() as { ok?: boolean; error?: string; phone?: string };
-
       if (!res.ok || data.error) throw new Error(data.error ?? "Failed to send code.");
 
       if (channel === "email") {
-        setInfo(`A sign-in link was sent to ${identifier.trim()} — check your inbox and click it to sign in.`);
+        setInfo(`A sign-in link was sent to ${identifier.trim()} — check your inbox and click it.`);
       } else {
         setInfo(`A 6-digit code was sent to your WhatsApp (${formatPhone(identifier)})`);
+        setPhone(data.phone ?? formatPhone(identifier));
+        setOtpStep("verify");
       }
-
-      setPhone(data.phone ?? formatPhone(identifier));
-      if (channel !== "email") setStep("verify");
-
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -69,38 +100,15 @@ function AuthForm() {
     }
   };
 
-  // ── Verify OTP ────────────────────────────────────────────────────────────
   const handleVerifyOtp = async () => {
     if (!otp.trim()) return;
     setLoading(true);
     setError("");
-
     try {
       const supabase = createClient();
-      let verifyErr;
-
-      if (channel === "email") {
-        const { error: e } = await supabase.auth.verifyOtp({
-          email: identifier.trim(),
-          token: otp.trim(),
-          type:  "email",
-        });
-        verifyErr = e;
-      } else {
-        const { error: e } = await supabase.auth.verifyOtp({
-          phone: phone,
-          token: otp.trim(),
-          type:  "sms",
-        });
-        verifyErr = e;
-      }
-
-      if (verifyErr) throw new Error(verifyErr.message);
-
-      const meRes  = await fetch("/api/auth/me");
-      const meData = await meRes.json() as { user?: { name?: string } | null };
-      router.push(meData.user?.name ? next : `/onboarding?next=${encodeURIComponent(next)}`);
-
+      const { error: e } = await supabase.auth.verifyOtp({ phone, token: otp.trim(), type: "sms" });
+      if (e) throw new Error(e.message);
+      await afterSignIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid code. Please try again.");
     } finally {
@@ -108,26 +116,18 @@ function AuthForm() {
     }
   };
 
-  // ── Password sign-in ─────────────────────────────────────────────────────
   const handlePasswordSignIn = async () => {
     if (!identifier.trim() || !password) return;
     setLoading(true);
     setError("");
-
     try {
       const supabase = createClient();
       const isPhone  = /^[+0]/.test(identifier.trim()) || /^\d{10,}$/.test(identifier.replace(/\D/g, ""));
-
       const { error: e } = isPhone
         ? await supabase.auth.signInWithPassword({ phone: formatPhone(identifier), password })
         : await supabase.auth.signInWithPassword({ email: identifier.trim(), password });
-
       if (e) throw new Error(e.message);
-
-      const meRes  = await fetch("/api/auth/me");
-      const meData = await meRes.json() as { user?: { name?: string } | null };
-      router.push(meData.user?.name ? next : `/onboarding?next=${encodeURIComponent(next)}`);
-
+      await afterSignIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed.");
     } finally {
@@ -135,6 +135,116 @@ function AuthForm() {
     }
   };
 
+  const afterSignIn = async () => {
+    const meRes  = await fetch("/api/auth/me");
+    const meData = await meRes.json() as { user?: { name?: string } | null };
+    router.push(meData.user?.name ? next : `/onboarding?next=${encodeURIComponent(next)}`);
+  };
+
+  /* ═══════════════════════════════════════════════════
+     SIGN UP
+  ═══════════════════════════════════════════════════ */
+  const handleSignUp = async () => {
+    if (!suName.trim())        { setError("Enter your full name."); return; }
+    if (!suIdentifier.trim())  { setError("Enter your phone number or email."); return; }
+    if (suPassword.length < 8) { setError("Password must be at least 8 characters."); return; }
+
+    setLoading(true);
+    setError("");
+    const supabase = createClient();
+
+    try {
+      if (isEmailStr(suIdentifier)) {
+        const res  = await fetch("/api/auth/signup", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ email: suIdentifier.trim(), password: suPassword, name: suName.trim() }),
+        });
+        const data = await res.json() as { error?: string };
+        if (!res.ok) throw new Error(data.error ?? "Sign-up failed.");
+
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: suIdentifier.trim().toLowerCase(),
+          password: suPassword,
+        });
+        if (signInErr) throw new Error(signInErr.message);
+
+        await fetch("/api/auth/me", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ name: suName.trim(), phone: null, location: "" }),
+        });
+
+        router.push(`/onboarding?next=${encodeURIComponent(next)}`);
+      } else {
+        const fmtPhone = formatPhone(suIdentifier);
+        const { error: signUpErr } = await supabase.auth.signUp({
+          phone:   fmtPhone,
+          password: suPassword,
+          options: { data: { name: suName.trim() } },
+        });
+        if (signUpErr) throw new Error(signUpErr.message);
+        setSuPhone(fmtPhone);
+        setSuStep("verify");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-up failed. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifySignUpOtp = async () => {
+    if (suOtp.length < 6) { setError("Enter the 6-digit code."); return; }
+    setLoading(true);
+    setError("");
+    const supabase = createClient();
+    try {
+      const { error: verifyErr } = await supabase.auth.verifyOtp({
+        phone: suPhone,
+        token: suOtp,
+        type:  "sms",
+      });
+      if (verifyErr) throw new Error(verifyErr.message);
+
+      await fetch("/api/auth/me", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ name: suName.trim(), phone: suPhone, location: "" }),
+      });
+
+      router.push(`/onboarding?next=${encodeURIComponent(next)}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Incorrect code. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ═══════════════════════════════════════════════════
+     FORGOT PASSWORD
+  ═══════════════════════════════════════════════════ */
+  const handleForgotPassword = async () => {
+    if (!fpEmail.trim()) { setError("Enter your email address."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const supabase = createClient();
+      const { error: e } = await supabase.auth.resetPasswordForEmail(fpEmail.trim(), {
+        redirectTo: `${window.location.origin}/auth/update-password`,
+      });
+      if (e) throw new Error(e.message);
+      setFpSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send reset email.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ═══════════════════════════════════════════════════
+     RENDER
+  ═══════════════════════════════════════════════════ */
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 font-sans">
       <div className="w-full max-w-sm">
@@ -147,27 +257,22 @@ function AuthForm() {
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
 
-          {/* Mode toggle */}
-          <div>
-            <h1 className="text-xl font-black text-gray-950">Sign in</h1>
-            <div className="flex gap-2 mt-3">
-              {(["otp", "password"] as AuthMode[]).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => { setMode(m); setStep("input"); setError(""); setInfo(""); setOtp(""); }}
-                  className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-colors ${
-                    mode === m
-                      ? "bg-green-700 text-white"
-                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                  }`}
-                >
-                  {m === "otp" ? "Send OTP code" : "Use password"}
-                </button>
-              ))}
-            </div>
+          {/* Top tab bar */}
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+            {(["signin", "signup", "forgot"] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => reset(t)}
+                className={`flex-1 py-1.5 text-[11px] font-black rounded-lg transition-colors ${
+                  tab === t ? "bg-white text-gray-950 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {t === "signin" ? "Sign In" : t === "signup" ? "Sign Up" : "Forgot"}
+              </button>
+            ))}
           </div>
 
-          {/* Error / info */}
+          {/* Error / info banners */}
           {error && (
             <div className="bg-red-50 border border-red-100 px-4 py-3 rounded-xl text-xs text-red-700 font-semibold">
               {error}
@@ -179,159 +284,286 @@ function AuthForm() {
             </div>
           )}
 
-          {/* ── OTP MODE ── */}
-          {mode === "otp" && (
+          {/* ══════════════════════════════
+              TAB: SIGN IN
+          ══════════════════════════════ */}
+          {tab === "signin" && (
             <>
-              {step === "input" && (
-                <>
-                  {/* Channel selector */}
-                  <div className="flex gap-1.5">
-                    {channelTabs.map(({ key, label, icon }) => (
-                      <button
-                        key={key}
-                        onClick={() => { setChannel(key); setIdentifier(""); setError(""); }}
-                        className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wide transition-colors ${
-                          channel === key
-                            ? "border-green-600 bg-green-50 text-green-700"
-                            : "border-gray-200 text-gray-400 hover:border-gray-300"
-                        }`}
-                      >
-                        <span className="text-base">{icon}</span>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Identifier input */}
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
-                      {channel === "email" ? "Email address" : "Phone number"}
-                    </label>
-                    <input
-                      type={channel === "email" ? "email" : "tel"}
-                      value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
-                      placeholder={channelTabs.find(c => c.key === channel)?.placeholder}
-                      autoFocus
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900"
-                    />
-                  </div>
-
+              {/* OTP / Password toggle */}
+              <div className="flex gap-2">
+                {(["otp", "password"] as Mode[]).map((m) => (
                   <button
-                    onClick={handleSendOtp}
-                    disabled={loading || !identifier.trim()}
-                    className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                    key={m}
+                    onClick={() => { setMode(m); setOtpStep("input"); setError(""); setInfo(""); setOtp(""); }}
+                    className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-colors ${
+                      mode === m ? "bg-green-700 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
                   >
-                    {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                    {loading ? "Sending…" : `Send code via ${channelTabs.find(c => c.key === channel)?.label} →`}
+                    {m === "otp" ? "Send OTP code" : "Use password"}
                   </button>
+                ))}
+              </div>
+
+              {/* OTP mode */}
+              {mode === "otp" && (
+                <>
+                  {otpStep === "input" && (
+                    <>
+                      <div className="flex gap-1.5">
+                        {(["email", "whatsapp"] as Channel[]).map((c) => (
+                          <button
+                            key={c}
+                            onClick={() => { setChannel(c); setIdentifier(""); setError(""); setInfo(""); }}
+                            className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wide transition-colors ${
+                              channel === c
+                                ? "border-green-600 bg-green-50 text-green-700"
+                                : "border-gray-200 text-gray-400 hover:border-gray-300"
+                            }`}
+                          >
+                            <span className="text-base">{c === "email" ? "✉️" : "📱"}</span>
+                            {c === "email" ? "Email" : "WhatsApp"}
+                          </button>
+                        ))}
+                      </div>
+                      <div>
+                        <label className={LABEL}>{channel === "email" ? "Email address" : "Phone number"}</label>
+                        <input
+                          type={channel === "email" ? "email" : "tel"}
+                          value={identifier}
+                          onChange={(e) => setIdentifier(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
+                          placeholder={channel === "email" ? "you@example.com" : "08012345678"}
+                          autoFocus
+                          className={INPUT}
+                        />
+                      </div>
+                      <button onClick={handleSendOtp} disabled={loading || !identifier.trim()} className={BTN_GREEN}>
+                        {loading && <Spinner />}
+                        {loading ? "Sending…" : `Send code via ${channel === "email" ? "Email" : "WhatsApp"} →`}
+                      </button>
+                    </>
+                  )}
+
+                  {otpStep === "verify" && (
+                    <>
+                      <div>
+                        <label className={LABEL}>6-digit code</label>
+                        <input
+                          type="text" inputMode="numeric" maxLength={6}
+                          value={otp}
+                          onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                          onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()}
+                          placeholder="000000"
+                          autoFocus
+                          className={`${INPUT} text-2xl font-black tracking-[0.4em] text-center`}
+                        />
+                      </div>
+                      <button onClick={handleVerifyOtp} disabled={loading || otp.length < 6} className={BTN_GREEN}>
+                        {loading && <Spinner />}
+                        {loading ? "Verifying…" : "Verify & sign in →"}
+                      </button>
+                      <button onClick={() => { setOtpStep("input"); setOtp(""); setError(""); setInfo(""); }}
+                        className="w-full text-xs text-gray-400 font-semibold hover:text-gray-600 transition-colors">
+                        ← Use a different method
+                      </button>
+                    </>
+                  )}
                 </>
               )}
 
-              {step === "verify" && (
+              {/* Password mode */}
+              {mode === "password" && (
                 <>
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
-                      6-digit code
-                    </label>
+                    <label className={LABEL}>Phone or email</label>
                     <input
                       type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                      onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()}
-                      placeholder="000000"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handlePasswordSignIn()}
+                      placeholder="08012345678 or you@email.com"
                       autoFocus
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-2xl font-black tracking-[0.4em] text-center focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900"
+                      className={INPUT}
                     />
                   </div>
-
-                  <button
-                    onClick={handleVerifyOtp}
-                    disabled={loading || otp.length < 6}
-                    className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
-                  >
-                    {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                    {loading ? "Verifying…" : "Verify & sign in →"}
+                  <div>
+                    <label className={LABEL}>Password</label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handlePasswordSignIn()}
+                      placeholder="••••••••"
+                      className={INPUT}
+                    />
+                  </div>
+                  <button onClick={handlePasswordSignIn} disabled={loading || !identifier.trim() || !password} className={BTN_GREEN}>
+                    {loading && <Spinner />}
+                    {loading ? "Signing in…" : "Sign in →"}
                   </button>
+                  <div className="text-center">
+                    <button onClick={() => reset("forgot")} className="text-xs font-black text-gray-400 hover:text-gray-600 transition-colors">
+                      Forgot password?
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          )}
 
+          {/* ══════════════════════════════
+              TAB: SIGN UP
+          ══════════════════════════════ */}
+          {tab === "signup" && (
+            <>
+              {suStep === "form" && (
+                <>
+                  <div>
+                    <p className="text-xs text-gray-400 font-semibold">Create your iSabi account</p>
+                  </div>
+                  <div>
+                    <label className={LABEL}>Full name</label>
+                    <input
+                      type="text"
+                      value={suName}
+                      onChange={(e) => setSuName(e.target.value)}
+                      placeholder="e.g. Fatima Musa"
+                      autoFocus
+                      className={INPUT}
+                    />
+                  </div>
+                  <div>
+                    <label className={LABEL}>Phone or email</label>
+                    <input
+                      type="text"
+                      value={suIdentifier}
+                      onChange={(e) => setSuIdentifier(e.target.value)}
+                      placeholder="080xxxxxxxx or you@email.com"
+                      className={INPUT}
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      {isEmailStr(suIdentifier)
+                        ? "Account created instantly — no verification needed"
+                        : "We'll send a one-time code to confirm your number"}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={LABEL}>Password</label>
+                    <input
+                      type="password"
+                      value={suPassword}
+                      onChange={(e) => setSuPassword(e.target.value)}
+                      placeholder="At least 8 characters"
+                      className={INPUT}
+                    />
+                    <p className={`text-[10px] mt-1 font-semibold ${suPassword.length >= 8 ? "text-green-600" : "text-gray-400"}`}>
+                      Minimum 8 characters
+                    </p>
+                  </div>
                   <button
-                    onClick={() => { setStep("input"); setOtp(""); setError(""); setInfo(""); }}
-                    className="w-full text-xs text-gray-400 font-semibold hover:text-gray-600 transition-colors"
+                    onClick={handleSignUp}
+                    disabled={loading || !suName.trim() || !suIdentifier.trim() || suPassword.length < 8}
+                    className={BTN_GREEN}
                   >
-                    ← Use a different method
+                    {loading && <Spinner />}
+                    {loading ? "Creating account…" : "Create account →"}
+                  </button>
+                  <p className="text-center text-xs text-gray-400">
+                    Already have an account?{" "}
+                    <button onClick={() => reset("signin")} className="text-green-700 font-black">Sign in</button>
+                  </p>
+                </>
+              )}
+
+              {suStep === "verify" && (
+                <>
+                  <div>
+                    <p className="text-sm font-black text-gray-950">Verify your number</p>
+                    <p className="text-xs text-gray-400 mt-1 font-semibold">
+                      Enter the 6-digit code sent to {suPhone}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={LABEL}>Verification code</label>
+                    <input
+                      type="text" inputMode="numeric" maxLength={6}
+                      value={suOtp}
+                      onChange={(e) => setSuOtp(e.target.value.replace(/\D/g, ""))}
+                      placeholder="123456"
+                      autoFocus
+                      className={`${INPUT} text-lg font-black text-center tracking-widest`}
+                    />
+                  </div>
+                  <button onClick={handleVerifySignUpOtp} disabled={loading || suOtp.length < 6} className={BTN_GREEN}>
+                    {loading && <Spinner />}
+                    {loading ? "Verifying…" : "Verify & continue →"}
+                  </button>
+                  <button onClick={() => { setSuStep("form"); setSuOtp(""); setError(""); }}
+                    className="w-full text-xs font-black text-gray-400 hover:text-gray-700 transition-colors">
+                    ← Change number
                   </button>
                 </>
               )}
             </>
           )}
 
-          {/* ── PASSWORD MODE ── */}
-          {mode === "password" && (
+          {/* ══════════════════════════════
+              TAB: FORGOT PASSWORD
+          ══════════════════════════════ */}
+          {tab === "forgot" && (
             <>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
-                  Phone or email
-                </label>
-                <input
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handlePasswordSignIn()}
-                  placeholder="08012345678 or you@email.com"
-                  autoFocus
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handlePasswordSignIn()}
-                  placeholder="••••••••"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-600 text-gray-900"
-                />
-              </div>
-
-              <button
-                onClick={handlePasswordSignIn}
-                disabled={loading || !identifier.trim() || !password}
-                className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
-              >
-                {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {loading ? "Signing in…" : "Sign in →"}
-              </button>
-
-              <div className="text-center">
-                <Link href="/auth/reset" className="text-xs font-black text-gray-400 hover:text-gray-600 transition-colors">
-                  Forgot password?
-                </Link>
-              </div>
+              {!fpSent ? (
+                <>
+                  <div>
+                    <p className="text-xs text-gray-400 font-semibold">
+                      Enter your email and we'll send a reset link.
+                    </p>
+                  </div>
+                  <div>
+                    <label className={LABEL}>Email address</label>
+                    <input
+                      type="email"
+                      value={fpEmail}
+                      onChange={(e) => setFpEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleForgotPassword()}
+                      placeholder="you@example.com"
+                      autoFocus
+                      className={INPUT}
+                    />
+                  </div>
+                  <button onClick={handleForgotPassword} disabled={loading || !fpEmail.trim()} className={BTN_GREEN}>
+                    {loading && <Spinner />}
+                    {loading ? "Sending…" : "Send reset link →"}
+                  </button>
+                </>
+              ) : (
+                <div className="bg-green-50 border border-green-100 px-4 py-4 rounded-xl text-xs text-green-700 font-semibold text-center space-y-2">
+                  <p className="font-black text-sm">Check your inbox</p>
+                  <p>A reset link was sent to <span className="font-black">{fpEmail}</span>. Click it to set a new password.</p>
+                </div>
+              )}
+              <p className="text-center text-xs text-gray-400">
+                Remembered it?{" "}
+                <button onClick={() => reset("signin")} className="text-green-700 font-black">Sign in</button>
+              </p>
             </>
           )}
 
-          {/* Footer links */}
-          <div className="border-t border-gray-100 pt-4 text-center space-y-2">
-            <p className="text-xs text-gray-500">
-              New to iSabi?{" "}
-              <Link href={`/onboarding?next=${encodeURIComponent(next)}`} className="text-green-700 font-black">
-                Create account
-              </Link>
-            </p>
-            <p className="text-xs text-gray-500">
-              Want to offer your skills?{" "}
-              <Link href="/onboarding?intent=artisan" className="text-green-700 font-black">
-                Register as artisan
-              </Link>
-            </p>
-          </div>
+          {/* Bottom links — only on sign-in tab */}
+          {tab === "signin" && (
+            <div className="border-t border-gray-100 pt-4 text-center space-y-2">
+              <p className="text-xs text-gray-500">
+                New to iSabi?{" "}
+                <button onClick={() => reset("signup")} className="text-green-700 font-black">Create account</button>
+              </p>
+              <p className="text-xs text-gray-500">
+                Want to offer your skills?{" "}
+                <Link href="/onboarding?intent=artisan" className="text-green-700 font-black">
+                  Register as artisan
+                </Link>
+              </p>
+            </div>
+          )}
         </div>
 
         <p className="text-center text-[10px] text-gray-400 mt-4 font-semibold">
