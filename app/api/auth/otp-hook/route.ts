@@ -41,8 +41,7 @@ async function verifySignature(req: NextRequest, rawBody: string): Promise<boole
 
   const secretBytes = Buffer.from(secretBase64, "base64");
   const toSign      = `${msgId}.${msgTimestamp}.${rawBody}`;
-  const expected    = createHmac("sha256", secretBytes).update(toSign).digest("base64");
-  const expectedBuf = Buffer.from(expected);
+  const expectedBuf = createHmac("sha256", secretBytes).update(toSign).digest();
 
   const receivedSigs = msgSignature.split(" ").map(s => s.replace(/^v\d+,/, ""));
   const valid = receivedSigs.some(sig => {
@@ -53,7 +52,10 @@ async function verifySignature(req: NextRequest, rawBody: string): Promise<boole
   });
 
   if (!valid) {
-    console.error("OTP-HOOK: signature mismatch", { expected: expected.slice(0, 8), received: receivedSigs.map(s => s.slice(0, 8)) });
+    console.error("OTP-HOOK: signature mismatch", {
+      expected: expectedBuf.toString("base64").slice(0, 12),
+      received: receivedSigs.map(s => s.slice(0, 12)),
+    });
   }
   return valid;
 }
