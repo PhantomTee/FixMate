@@ -1,13 +1,20 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { firebaseAuth } from "@/lib/firebase";
+import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from "firebase/auth";
 
 type Tab     = "signin" | "signup" | "forgot";
-type Channel = "email" | "whatsapp";
+type Channel = "email" | "phone";
 type Mode    = "otp" | "password";
+
+// Phone/WhatsApp sign-up & OTP are temporarily disabled (Firebase Blaze billing
+// pending). All the Firebase phone-auth code below stays intact — flip this
+// back to true once billing + service-account env vars are in place.
+const PHONE_AUTH_ENABLED = false;
 
 function formatPhone(p: string): string {
   const digits = p.replace(/\D/g, "");
@@ -62,6 +69,30 @@ function AuthForm() {
   const [error,   setError]   = useState("");
   const [info,    setInfo]    = useState("");
 
+  /* ── Firebase phone auth ── */
+  const confirmationRef     = useRef<ConfirmationResult | null>(null);
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+
+  function getRecaptchaVerifier(): RecaptchaVerifier {
+    if (!firebaseAuth) throw new Error("Phone verification is not configured.");
+    if (!recaptchaVerifierRef.current) {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(firebaseAuth, "recaptcha-container", { size: "invisible" });
+    }
+    return recaptchaVerifierRef.current;
+  }
+
+  async function sendPhoneOtp(fmtPhone: string): Promise<void> {
+    if (!firebaseAuth) throw new Error("Phone verification is not configured.");
+    const verifier = getRecaptchaVerifier();
+    confirmationRef.current = await signInWithPhoneNumber(firebaseAuth, fmtPhone, verifier);
+  }
+
+  async function establishSupabaseSession(token_hash: string): Promise<void> {
+    const supabase = createClient();
+    const { error: e } = await supabase.auth.verifyOtp({ token_hash, type: "email" });
+    if (e) throw new Error(e.message);
+  }
+
   const reset = (t: Tab) => {
     setTab(t);
     setError("");
@@ -78,19 +109,20 @@ function AuthForm() {
     setError("");
     setInfo("");
     try {
-      const res  = await fetch("/api/auth/send-otp", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ identifier: identifier.trim(), channel }),
-      });
-      const data = await res.json() as { ok?: boolean; error?: string; phone?: string };
-      if (!res.ok || data.error) throw new Error(data.error ?? "Failed to send code.");
-
       if (channel === "email") {
+        const res  = await fetch("/api/auth/send-otp", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ identifier: identifier.trim(), channel }),
+        });
+        const data = await res.json() as { ok?: boolean; error?: string };
+        if (!res.ok || data.error) throw new Error(data.error ?? "Failed to send code.");
         setInfo(`A sign-in link was sent to ${identifier.trim()} — check your inbox and click it.`);
       } else {
-        setInfo(`A 6-digit code was sent to your WhatsApp (${formatPhone(identifier)})`);
-        setPhone(data.phone ?? formatPhone(identifier));
+        const fmtPhone = formatPhone(identifier);
+        await sendPhoneOtp(fmtPhone);
+        setPhone(fmtPhone);
+        setInfo(`A 6-digit code was sent via SMS to ${fmtPhone}`);
         setOtpStep("verify");
       }
     } catch (err) {
@@ -105,9 +137,19 @@ function AuthForm() {
     setLoading(true);
     setError("");
     try {
-      const supabase = createClient();
-      const { error: e } = await supabase.auth.verifyOtp({ phone, token: otp.trim(), type: "sms" });
-      if (e) throw new Error(e.message);
+      if (!confirmationRef.current) throw new Error("Session expired. Request a new code.");
+      const cred    = await confirmationRef.current.confirm(otp.trim());
+      const idToken = await cred.user.getIdToken();
+
+      const res  = await fetch("/api/auth/firebase-phone", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ idToken, mode: "signin" }),
+      });
+      const data = await res.json() as { token_hash?: string; error?: string };
+      if (!res.ok || !data.token_hash) throw new Error(data.error ?? "Sign-in failed.");
+
+      await establishSupabaseSession(data.token_hash);
       await afterSignIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid code. Please try again.");
@@ -146,7 +188,11 @@ function AuthForm() {
   ═══════════════════════════════════════════════════ */
   const handleSignUp = async () => {
     if (!suName.trim())        { setError("Enter your full name."); return; }
-    if (!suIdentifier.trim())  { setError("Enter your phone number or email."); return; }
+    if (!suIdentifier.trim())  { setError("Enter your email address."); return; }
+    if (!PHONE_AUTH_ENABLED && !isEmailStr(suIdentifier)) {
+      setError("Phone sign-up is temporarily unavailable — please use your email address.");
+      return;
+    }
     if (suPassword.length < 8) { setError("Password must be at least 8 characters."); return; }
 
     setLoading(true);
@@ -178,18 +224,7 @@ function AuthForm() {
         router.push(`/onboarding?next=${encodeURIComponent(next)}`);
       } else {
         const fmtPhone = formatPhone(suIdentifier);
-        // Insert channel pref before signUp so the hook knows to deliver OTP via WhatsApp
-        await fetch("/api/auth/otp-channel", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ phone: fmtPhone, channel: "whatsapp" }),
-        });
-        const { error: signUpErr } = await supabase.auth.signUp({
-          phone:   fmtPhone,
-          password: suPassword,
-          options: { data: { name: suName.trim() } },
-        });
-        if (signUpErr) throw new Error(signUpErr.message);
+        await sendPhoneOtp(fmtPhone);
         setSuPhone(fmtPhone);
         setSuStep("verify");
       }
@@ -204,14 +239,20 @@ function AuthForm() {
     if (suOtp.length < 6) { setError("Enter the 6-digit code."); return; }
     setLoading(true);
     setError("");
-    const supabase = createClient();
     try {
-      const { error: verifyErr } = await supabase.auth.verifyOtp({
-        phone: suPhone,
-        token: suOtp,
-        type:  "sms",
+      if (!confirmationRef.current) throw new Error("Session expired. Request a new code.");
+      const cred    = await confirmationRef.current.confirm(suOtp);
+      const idToken = await cred.user.getIdToken();
+
+      const res  = await fetch("/api/auth/firebase-phone", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ idToken, mode: "signup", name: suName.trim(), password: suPassword }),
       });
-      if (verifyErr) throw new Error(verifyErr.message);
+      const data = await res.json() as { token_hash?: string; error?: string };
+      if (!res.ok || !data.token_hash) throw new Error(data.error ?? "Sign-up failed.");
+
+      await establishSupabaseSession(data.token_hash);
 
       await fetch("/api/auth/me", {
         method:  "POST",
@@ -315,22 +356,24 @@ function AuthForm() {
                 <>
                   {otpStep === "input" && (
                     <>
-                      <div className="flex gap-1.5">
-                        {(["email", "whatsapp"] as Channel[]).map((c) => (
-                          <button
-                            key={c}
-                            onClick={() => { setChannel(c); setIdentifier(""); setError(""); setInfo(""); }}
-                            className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wide transition-colors ${
-                              channel === c
-                                ? "border-green-600 bg-green-50 text-green-700"
-                                : "border-gray-200 text-gray-400 hover:border-gray-300"
-                            }`}
-                          >
-                            <span className="text-base">{c === "email" ? "✉️" : "📱"}</span>
-                            {c === "email" ? "Email" : "WhatsApp"}
-                          </button>
-                        ))}
-                      </div>
+                      {PHONE_AUTH_ENABLED && (
+                        <div className="flex gap-1.5">
+                          {(["email", "phone"] as Channel[]).map((c) => (
+                            <button
+                              key={c}
+                              onClick={() => { setChannel(c); setIdentifier(""); setError(""); setInfo(""); }}
+                              className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wide transition-colors ${
+                                channel === c
+                                  ? "border-green-600 bg-green-50 text-green-700"
+                                  : "border-gray-200 text-gray-400 hover:border-gray-300"
+                              }`}
+                            >
+                              <span className="text-base">{c === "email" ? "✉️" : "📱"}</span>
+                              {c === "email" ? "Email" : "Phone"}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div>
                         <label className={LABEL}>{channel === "email" ? "Email address" : "Phone number"}</label>
                         <input
@@ -345,7 +388,7 @@ function AuthForm() {
                       </div>
                       <button onClick={handleSendOtp} disabled={loading || !identifier.trim()} className={BTN_GREEN}>
                         {loading && <Spinner />}
-                        {loading ? "Sending…" : `Send code via ${channel === "email" ? "Email" : "WhatsApp"} →`}
+                        {loading ? "Sending…" : `Send code via ${channel === "email" ? "Email" : "SMS"} →`}
                       </button>
                     </>
                   )}
@@ -439,18 +482,20 @@ function AuthForm() {
                     />
                   </div>
                   <div>
-                    <label className={LABEL}>Phone or email</label>
+                    <label className={LABEL}>{PHONE_AUTH_ENABLED ? "Phone or email" : "Email address"}</label>
                     <input
                       type="text"
                       value={suIdentifier}
                       onChange={(e) => setSuIdentifier(e.target.value)}
-                      placeholder="080xxxxxxxx or you@email.com"
+                      placeholder={PHONE_AUTH_ENABLED ? "080xxxxxxxx or you@email.com" : "you@email.com"}
                       className={INPUT}
                     />
                     <p className="text-[10px] text-gray-400 mt-1">
-                      {isEmailStr(suIdentifier)
+                      {!PHONE_AUTH_ENABLED
                         ? "We'll send a confirmation link to this email"
-                        : "We'll send a one-time code to confirm your number"}
+                        : isEmailStr(suIdentifier)
+                          ? "We'll send a confirmation link to this email"
+                          : "We'll send a one-time SMS code to confirm your number"}
                     </p>
                   </div>
                   <div>
@@ -489,26 +534,6 @@ function AuthForm() {
                       Enter the 6-digit code sent to {suPhone}
                     </p>
                   </div>
-
-                  {/* WhatsApp opt-in nudge */}
-                  <a
-                    href="https://wa.me/2348020795709?text=hi"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 hover:bg-green-100 transition-colors"
-                  >
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0 fill-green-600" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.555 4.122 1.527 5.855L.057 23.882l6.196-1.448A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.8 9.8 0 01-5.001-1.368l-.36-.214-3.68.861.875-3.593-.235-.369A9.818 9.818 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
-                    </svg>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-black text-green-800 leading-tight">Tap to open WhatsApp</p>
-                      <p className="text-[11px] text-green-600 leading-tight mt-0.5">Send us a quick "hi" so we can deliver your code</p>
-                    </div>
-                    <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0 text-green-400" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/>
-                    </svg>
-                  </a>
 
                   <div>
                     <label className={LABEL}>Verification code</label>
@@ -598,6 +623,9 @@ function AuthForm() {
           <Link href="/terms" className="underline">terms of service</Link>.
         </p>
       </div>
+
+      {/* Invisible reCAPTCHA host required by Firebase Phone Auth */}
+      <div id="recaptcha-container" />
     </div>
   );
 }
