@@ -40,8 +40,6 @@ function OnboardingForm() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const portfolioRef = useRef<HTMLInputElement>(null);
-  const selfieRef    = useRef<HTMLInputElement>(null);
-  const ninRef       = useRef<HTMLInputElement>(null);
 
   const nextParam   = searchParams.get("next") ?? "/profile";
   const intentParam = searchParams.get("intent") as "artisan" | null;
@@ -77,18 +75,6 @@ function OnboardingForm() {
   const [calloutFee, setCalloutFee] = useState("");
   const [dailyRate,  setDailyRate]  = useState("");
 
-  // Step 6: KYC
-  const [selfie,    setSelfie]    = useState<string | null>(null);
-  const [ninCard,   setNinCard]   = useState<string | null>(null);
-  const [kycResult, setKycResult] = useState<{
-    extracted_name: string;
-    extracted_nin: string;
-    face_match: boolean;
-    confidence: number;
-    verified: boolean;
-    reason: string;
-  } | null>(null);
-  const [kycLoading, setKycLoading] = useState(false);
 
   /* Guard: require auth */
   useEffect(() => {
@@ -127,27 +113,6 @@ function OnboardingForm() {
     }
   };
 
-  /* Image compression */
-  const compressImage = (file: File, maxPx = 800, quality = 0.72): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = reject;
-      reader.onloadend = () => {
-        const img = new Image();
-        img.onerror = reject;
-        img.onload = () => {
-          const scale  = Math.min(1, maxPx / Math.max(img.width, img.height));
-          const canvas = document.createElement("canvas");
-          canvas.width  = Math.round(img.width  * scale);
-          canvas.height = Math.round(img.height * scale);
-          canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL("image/jpeg", quality));
-        };
-        img.src = reader.result as string;
-      };
-      reader.readAsDataURL(file);
-    });
-
   /* Portfolio */
   const handlePortfolioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -163,28 +128,7 @@ function OnboardingForm() {
     );
   };
 
-  /* KYC */
-  const runKyc = async () => {
-    if (!selfie || !ninCard) { setError("Upload both your NIN card and selfie."); return; }
-    setKycLoading(true);
-    setError("");
-    try {
-      const res  = await fetch("/api/kyc/verify", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ ninCard, selfie }),
-      });
-      const data = await res.json() as typeof kycResult;
-      if (!res.ok) throw new Error((data as { reason?: string }).reason ?? "Verification failed");
-      setKycResult(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "KYC verification failed. Try again.");
-    } finally {
-      setKycLoading(false);
-    }
-  };
-
-  /* Final artisan submit */
+  /* Final artisan submit — KYC happens after, via idnorm redirect from the dashboard */
   const handleArtisanSubmit = async () => {
     setLoading(true);
     setError("");
@@ -208,9 +152,6 @@ function OnboardingForm() {
           calloutFeeNaira: parseInt(calloutFee || "0", 10),
           dailyRateNaira:  parseInt(dailyRate  || "0", 10),
           portfolioPhotos: portfolio,
-          selfieUrl:       selfie ?? "",
-          ninVerified:     kycResult?.verified ?? false,
-          ninReference:    kycResult?.extracted_nin ?? "",
         }),
       });
       if (!res.ok) {
@@ -423,92 +364,15 @@ function OnboardingForm() {
             </>
           )}
 
-          {/* ── Step 6: KYC ── */}
+          {/* ── Step 6: Review & submit ── */}
           {step === 6 && isArtisan && (
             <>
               <div>
-                <h1 className="text-xl font-black text-gray-950">Identity verification</h1>
+                <h1 className="text-xl font-black text-gray-950">Review your application</h1>
                 <p className="text-xs text-gray-400 mt-1 font-semibold">
-                  Upload your NIN slip and a selfie. iSabi AI verifies you instantly.
+                  You&apos;ll verify your identity from your dashboard after this.
                 </p>
               </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">NIN Slip / Government ID</label>
-                <button type="button" onClick={() => ninRef.current?.click()}
-                  className={`w-full border-2 border-dashed rounded-xl flex flex-col items-center justify-center py-4 transition-colors ${
-                    ninCard ? "border-green-300 bg-green-50" : "border-gray-200 hover:border-green-400"
-                  }`}>
-                  {ninCard
-                    ? <img src={ninCard} alt="NIN card" className="max-h-28 object-contain rounded-lg" />
-                    : <>
-                        <p className="text-xs font-black text-gray-500">Tap to upload NIN slip or ID card</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">NIN slip, voter card, driver&apos;s licence</p>
-                      </>
-                  }
-                </button>
-                <input ref={ninRef} type="file" accept="image/*" className="hidden"
-                  onChange={async (e) => { const f = e.target.files?.[0]; if (f) setNinCard(await compressImage(f)); }} />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1.5">Live Selfie</label>
-                <button type="button" onClick={() => selfieRef.current?.click()}
-                  className={`w-full border-2 border-dashed rounded-xl flex flex-col items-center justify-center py-4 transition-colors ${
-                    selfie ? "border-green-300 bg-green-50" : "border-gray-200 hover:border-green-400"
-                  }`}>
-                  {selfie
-                    ? <img src={selfie} alt="Selfie" className="w-20 h-20 rounded-full object-cover mx-auto" />
-                    : <>
-                        <p className="text-xs font-black text-gray-500">Tap to take a selfie</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">Must match your ID photo</p>
-                      </>
-                  }
-                </button>
-                <input ref={selfieRef} type="file" accept="image/*" capture="user" className="hidden"
-                  onChange={async (e) => { const f = e.target.files?.[0]; if (f) setSelfie(await compressImage(f)); }} />
-              </div>
-
-              {!kycResult && (
-                <button onClick={runKyc} disabled={kycLoading || !ninCard || !selfie}
-                  className="w-full py-3 bg-gray-950 text-white text-sm font-black rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
-                  {kycLoading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                  {kycLoading ? "Verifying with iSabi AI…" : "Verify Identity"}
-                </button>
-              )}
-
-              {kycResult && (
-                <div className={`rounded-xl p-4 text-xs space-y-1.5 border ${kycResult.verified ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
-                  <p className={`font-black text-sm ${kycResult.verified ? "text-green-700" : "text-red-700"}`}>
-                    {kycResult.verified ? "Identity verified" : "Verification failed"}
-                  </p>
-                  {kycResult.extracted_name && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 font-semibold">Name on ID</span>
-                      <span className="font-black text-gray-950">{kycResult.extracted_name}</span>
-                    </div>
-                  )}
-                  {kycResult.extracted_nin && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 font-semibold">NIN</span>
-                      <span className="font-black text-gray-950 font-mono">{kycResult.extracted_nin}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-gray-500 font-semibold">Face match</span>
-                    <span className={`font-black ${kycResult.face_match ? "text-green-700" : "text-red-600"}`}>
-                      {kycResult.face_match ? `Yes (${Math.round(kycResult.confidence * 100)}%)` : "No"}
-                    </span>
-                  </div>
-                  <p className="text-gray-500 italic">{kycResult.reason}</p>
-                  {!kycResult.verified && (
-                    <button onClick={() => { setKycResult(null); setNinCard(null); setSelfie(null); }}
-                      className="mt-2 text-xs font-black text-red-600 hover:text-red-800">
-                      Try again
-                    </button>
-                  )}
-                </div>
-              )}
 
               <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-xs">
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Application Summary</p>
@@ -530,19 +394,17 @@ function OnboardingForm() {
                 })}
               </div>
 
-              {!kycResult && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 font-semibold">
-                  Skipping verification will tag your profile as <span className="font-black">Unverified</span>. You can complete KYC later from your dashboard.
-                </div>
-              )}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 font-semibold">
+                After submitting, you&apos;ll be asked to verify your identity (ID scan + selfie) from your dashboard. Unverified profiles are tagged accordingly until verification completes.
+              </div>
 
               <button
                 onClick={handleArtisanSubmit}
-                disabled={loading || (!!kycResult && !kycResult.verified)}
+                disabled={loading}
                 className="w-full py-3 bg-green-700 text-white text-sm font-black rounded-xl hover:bg-green-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {loading ? "Submitting…" : kycResult?.verified ? "Submit Verified Application" : "Submit Without Verification →"}
+                {loading ? "Submitting…" : "Submit Application →"}
               </button>
               <p className="text-[10px] text-gray-400 text-center">
                 Reviewed within 24 hours. You will receive a WhatsApp notification when approved.

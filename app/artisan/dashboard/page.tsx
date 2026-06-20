@@ -511,6 +511,27 @@ export default function ArtisanDashboardPage() {
           </p>
         </div>
       )}
+      {!artisan.isVerified && (
+        <div className="bg-blue-50 border-b border-blue-200 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+            <p className="text-xs font-black text-blue-800 truncate">
+              Verify your identity to unlock more jobs and a Verified badge.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              const res = await fetch("/api/kyc/idnorm/create-session", { method: "POST" });
+              const data = await res.json() as { verificationUrl?: string; error?: string };
+              if (data.verificationUrl) window.open(data.verificationUrl, "_blank");
+              else alert(data.error ?? "Could not start verification. Try again.");
+            }}
+            className="shrink-0 bg-blue-600 text-white text-xs font-black px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Get Verified →
+          </button>
+        </div>
+      )}
 
       <main className="max-w-lg mx-auto px-4 py-5 space-y-4">
 
